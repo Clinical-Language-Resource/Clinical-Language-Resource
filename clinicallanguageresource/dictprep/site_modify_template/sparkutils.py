@@ -3,7 +3,7 @@ import os
 from pyspark.sql import SparkSession
 
 
-def setupsparksession(name: str) -> SparkSession:
+def setup_spark_session(name: str) -> SparkSession:
     """
     Gets a Spark Session. Overload with own implementation if needed to suit local environment.
     """

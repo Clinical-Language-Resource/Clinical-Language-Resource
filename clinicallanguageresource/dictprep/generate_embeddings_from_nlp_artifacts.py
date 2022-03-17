@@ -57,7 +57,7 @@ def generate_embedding(lexeme: str, sentence: str):
 
 if __name__ == '__main__':
     # Setup Spark
-    spark: SparkSession = sparkutils.setupsparksession("CLR-Generate-Embeddings")
+    spark: SparkSession = sparkutils.setup_spark_session("CLR-Generate-Embeddings")
 
     # Setup NLP Dataset
     df: DataFrame = nlpio.get_nlp_artifact_table(spark)
