@@ -82,7 +82,7 @@ if __name__ == '__main__':
     torch.set_num_threads(1)  # Hard-lock to single thread since we are running many partitions in parallel
 
     # Run embedding generation
-    embeddings_udf = F.udf(lambda self, lex, sent: generate_embedding(lex, sent), ArrayType(StringType()))
+    embeddings_udf = F.udf(lambda lex, sent: generate_embedding(lex, sent), ArrayType(StringType()))
     df = df.select(df[nlpio.concept_code_col_name],
                    df[nlpio.lexeme_col_name],
                    F.explode(embeddings_udf(df[nlpio.lexeme_col_name],
