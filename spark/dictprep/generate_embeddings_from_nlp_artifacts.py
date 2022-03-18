@@ -51,8 +51,6 @@ def generate_embedding(lexeme: str, sentence: str):
     return ret_vectors
 
 
-
-
 if __name__ == '__main__':
     # Setup Spark
     spark: SparkSession = sparkutils.setup_spark_session("CLR-Generate-Embeddings")
@@ -68,7 +66,8 @@ if __name__ == '__main__':
 
     # Setup BERT
     tokenizer: BertTokenizer = AutoTokenizer.from_pretrained("./model/bio_clinbert_model",
-                                                             config=AutoConfig.from_pretrained("./model/bio_clinbert_model"))
+                                                             config=AutoConfig.from_pretrained(
+                                                                 "./model/bio_clinbert_model"))
     model = AutoModel.from_pretrained("./model/bio_clinbert_model", output_hidden_states=True)
     torch.set_num_threads(1)  # Hard-lock to single thread since we are running many partitions in parallel
 
@@ -77,9 +76,7 @@ if __name__ == '__main__':
     df = df.select(df[nlpio.concept_code_col_name],
                    df[nlpio.lexeme_col_name],
                    F.explode(embeddings_udf(df[nlpio.lexeme_col_name],
-                                                    df[nlpio.containing_sentence_col_name])).alias("embedding"))
+                                            df[nlpio.containing_sentence_col_name])).alias("embedding"))
 
     # Save results as CSV
     df.write.csv(path=save_embeddings_dir, mode="overwrite", header=True)
-
-
