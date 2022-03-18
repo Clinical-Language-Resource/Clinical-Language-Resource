@@ -1,4 +1,14 @@
-# Generates Embeddings from NLP Artifacts
+"""
+Generates a BERT embedding for each NLP artifact provided in an input table.
+Modify clinicallanguageresource.dictprep.site_modify appropriately to your cluster.
+clinicallanguageresource.dictprep.site_modify_template provides a baseline implementation on the OHDSI CDM's
+note_nlp table.
+
+Output will be in form of concept_code, lexeme, base64-encoded ndarray of the embedding
+
+Required spark parameter: spark.clr.embedding_output_dir - where to write resulting embeddings as a CSV
+"""
+
 import base64
 import re
 
