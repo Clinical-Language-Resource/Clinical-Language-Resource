@@ -5,7 +5,7 @@ import re
 import numpy as np
 import torch
 from pyspark.sql import SparkSession, functions, DataFrame
-from pyspark.sql.functions import udf
+import pyspark.sql.functions as F
 from pyspark.sql.types import ArrayType, StringType
 from transformers import BertTokenizer, AutoTokenizer, AutoModel, AutoConfig
 
@@ -56,7 +56,7 @@ def generate_embedding(lexeme: str, sentence: str):
 if __name__ == '__main__':
     # Setup Spark
     spark: SparkSession = sparkutils.setup_spark_session("CLR-Generate-Embeddings")
-    save_embeddings_dir = spark.conf.get('spark.clr.embedding_output_dir')
+    save_embeddings_dir = spark.sparkContext.getConf().get('spark.clr.embedding_output_dir')
 
     # Setup NLP Dataset
     df: DataFrame = nlpio.get_nlp_artifact_table(spark)
@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
     # Run embedding generation
     emb_func_output_type = ArrayType(StringType())
-    embeddings_udf = udf(lambda lex, sent: generate_embedding(lex, sent), emb_func_output_type)
+    embeddings_udf = F.udf(lambda lex, sent: generate_embedding(lex, sent), emb_func_output_type)
     df = df.select(df[nlpio.note_id_col_name],
                    df[nlpio.concept_code_col_name],
                    df[nlpio.lexeme_col_name],
@@ -83,6 +83,6 @@ if __name__ == '__main__':
                                                     df[nlpio.containing_sentence_col_name])).alias("embedding"))
 
     # Save results as CSV
-    df.write.format("csv").mode(saveMode="overwrite").save(save_embeddings_dir)
+    df.write.csv(path=save_embeddings_dir, mode="overwrite", header=True)
 
 
