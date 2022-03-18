@@ -12,8 +12,6 @@ from transformers import BertTokenizer, AutoTokenizer, AutoModel, AutoConfig
 import clinicallanguageresource.dictprep.site_modify.nlpio as nlpio
 from clinicallanguageresource.dictprep.site_modify import sparkutils
 
-save_embeddings_dir = '/dir/to/save/results/to'
-
 
 def generate_embedding(lexeme: str, sentence: str):
     torch.set_num_threads(1)  # TODO make torch settings configurable instead of being locked to CPU single-thread
@@ -58,6 +56,7 @@ def generate_embedding(lexeme: str, sentence: str):
 if __name__ == '__main__':
     # Setup Spark
     spark: SparkSession = sparkutils.setup_spark_session("CLR-Generate-Embeddings")
+    save_embeddings_dir = spark.conf.get('spark.clr.embedding_output_dir')
 
     # Setup NLP Dataset
     df: DataFrame = nlpio.get_nlp_artifact_table(spark)
