@@ -68,7 +68,7 @@ if __name__ == '__main__':
                    functions.lower(df[nlpio.lexeme_col_name]).alias(nlpio.lexeme_col_name)).distinct()
 
     # Setup BERT
-    tokenizer: BertTokenizer = AutoTokenizer.from_pretrained("./model/bio_clinbert_tokenizer",
+    tokenizer: BertTokenizer = AutoTokenizer.from_pretrained("./model/bio_clinbert_model",
                                                              config=AutoConfig.from_pretrained("./model/bio_clinbert_model"))
     model = AutoModel.from_pretrained("./model/bio_clinbert_model", output_hidden_states=True)
     torch.set_num_threads(1)

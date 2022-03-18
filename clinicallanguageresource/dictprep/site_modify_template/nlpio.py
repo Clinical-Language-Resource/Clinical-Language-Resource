@@ -4,7 +4,7 @@ For simplicity, the provided implementation here assumes OHDSI CDM format for no
 adjusted based on use case and needs, with individual methods also overloaded as appropriate
 """
 
-from pyspark.sql import SparkSession, DataFrame, functions as f
+from pyspark.sql import SparkSession, DataFrame
 import pyspark.sql.functions as F
 
 from clinicallanguageresource.dictprep.util.nlpannotations import flatten_overlaps, flatten_overlaps_schema
@@ -56,7 +56,7 @@ def remove_all_subsumed(df: DataFrame) -> DataFrame:
     df = df.groupBy(
         df[note_id_col_name],
         df[containing_sentence_col_name]) \
-        .agg(f.collect_list(f.struct(df[lexical_variant_col_name], df[offset_col_name], df[concept_id_col_name]))
+        .agg(F.collect_list(F.struct(df[lexical_variant_col_name], df[offset_col_name], df[concept_id_col_name]))
              .alias("lexeme_indexes"))
     # Remove all subsumed annotations
     remove_subsumed_udf = F.udf(lambda offsets: flatten_overlaps(offsets), flatten_overlaps_schema(concept_code_col_name,
@@ -64,10 +64,10 @@ def remove_all_subsumed(df: DataFrame) -> DataFrame:
                                                                                                  begin_col_name,
                                                                                                  end_col_name))
     df = df.select(df[note_id_col_name], df[containing_sentence_col_name],
-                   f.explode(remove_subsumed_udf(df[containing_sentence_col_name], df["lexeme_indexes"])).alias("lstc"))
+                   F.explode(remove_subsumed_udf(df[containing_sentence_col_name], df["lexeme_indexes"])).alias("lstc"))
     # Keep only note_id, concept_code, sentence, lexeme, and deduplicate
     df = df.select(df[note_id_col_name],
-                   f.col("lstc." + concept_code_col_name).alias(concept_code_col_name),
+                   F.col("lstc." + concept_code_col_name).alias(concept_code_col_name),
                    df[containing_sentence_col_name],
-                   f.col("lstc." + lexeme_col_name).alias(lexeme_col_name))
+                   F.col("lstc." + lexeme_col_name).alias(lexeme_col_name))
     return df
