@@ -64,7 +64,7 @@ def remove_all_subsumed(df: DataFrame) -> DataFrame:
                                                                                                  begin_col_name,
                                                                                                  end_col_name))
     df = df.select(df[note_id_col_name], df[containing_sentence_col_name],
-                   f.explode(remove_subsumed_udf(df[containing_sentence_col_name], df["lexeme_indexes"]))).alias("lstc")
+                   f.explode(remove_subsumed_udf(df[containing_sentence_col_name], df["lexeme_indexes"])).alias("lstc"))
     # Keep only note_id, concept_code, sentence, lexeme, and deduplicate
     df = df.select(df[note_id_col_name],
                    f.col("lstc." + concept_code_col_name).alias(concept_code_col_name),
