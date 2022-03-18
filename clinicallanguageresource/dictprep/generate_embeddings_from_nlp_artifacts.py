@@ -4,7 +4,7 @@ import re
 
 import numpy as np
 import torch
-from pyspark.sql import SparkSession, functions, DataFrame
+from pyspark.sql import SparkSession, DataFrame
 import pyspark.sql.functions as F
 from pyspark.sql.types import ArrayType, StringType
 from transformers import BertTokenizer, AutoTokenizer, AutoModel, AutoConfig
@@ -64,8 +64,8 @@ if __name__ == '__main__':
     df = nlpio.remove_all_subsumed(df)
     df = df.select(df[nlpio.note_id_col_name],
                    df[nlpio.concept_code_col_name],
-                   functions.lower(df[nlpio.containing_sentence_col_name]).alias(nlpio.containing_sentence_col_name),
-                   functions.lower(df[nlpio.lexeme_col_name]).alias(nlpio.lexeme_col_name)).distinct()
+                   F.lower(df[nlpio.containing_sentence_col_name]).alias(nlpio.containing_sentence_col_name),
+                   F.lower(df[nlpio.lexeme_col_name]).alias(nlpio.lexeme_col_name)).distinct()
 
     # Setup BERT
     tokenizer: BertTokenizer = AutoTokenizer.from_pretrained("./model/bio_clinbert_model",
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     df = df.select(df[nlpio.note_id_col_name],
                    df[nlpio.concept_code_col_name],
                    df[nlpio.lexeme_col_name],
-                   functions.explode(embeddings_udf(df[nlpio.lexeme_col_name],
+                   F.explode(embeddings_udf(df[nlpio.lexeme_col_name],
                                                     df[nlpio.containing_sentence_col_name])).alias("embedding"))
 
     # Save results as CSV
