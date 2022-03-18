@@ -14,7 +14,7 @@ from clinicallanguageresource.dictprep.site_modify import sparkutils
 
 
 def generate_embedding(lexeme: str, sentence: str):
-    torch.set_num_threads(1)  # TODO make torch settings configurable instead of being locked to CPU single-thread
+    torch.set_num_threads(1)  # Hard-lock to single thread since we are running many partitions in parallel
     layers = [-4, -3, -2, -1]  # Use last 4 layers by default as is standard
 
     # Find possible lexeme indices within the sentence. Note that the sentence can contain lexemes multiple times,
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     tokenizer: BertTokenizer = AutoTokenizer.from_pretrained("./model/bio_clinbert_model",
                                                              config=AutoConfig.from_pretrained("./model/bio_clinbert_model"))
     model = AutoModel.from_pretrained("./model/bio_clinbert_model", output_hidden_states=True)
-    torch.set_num_threads(1)
+    torch.set_num_threads(1)  # Hard-lock to single thread since we are running many partitions in parallel
 
     # Run embedding generation
     emb_func_output_type = ArrayType(StringType())
