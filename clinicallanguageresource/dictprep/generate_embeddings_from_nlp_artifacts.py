@@ -20,7 +20,7 @@ def generate_embedding(lexeme: str, sentence: str):
     # Find possible lexeme indices within the sentence. Note that the sentence can contain lexemes multiple times,
     # but because we eliminate duplicates from offsets, we will only have one entry. Thus, we need to iterate through
     # all of them
-    lexeme_offsets = [m.start() for m in re.finditer(lexeme, sentence)]
+    lexeme_offsets = [m.start() for m in re.finditer(re.escape(lexeme), sentence)]
 
     ret_vectors = []
 
@@ -74,8 +74,7 @@ if __name__ == '__main__':
     torch.set_num_threads(1)  # Hard-lock to single thread since we are running many partitions in parallel
 
     # Run embedding generation
-    emb_func_output_type = ArrayType(StringType())
-    embeddings_udf = F.udf(lambda lex, sent: generate_embedding(lex, sent), emb_func_output_type)
+    embeddings_udf = F.udf(lambda self, lex, sent: generate_embedding(lex, sent), ArrayType(StringType()))
     df = df.select(df[nlpio.note_id_col_name],
                    df[nlpio.concept_code_col_name],
                    df[nlpio.lexeme_col_name],

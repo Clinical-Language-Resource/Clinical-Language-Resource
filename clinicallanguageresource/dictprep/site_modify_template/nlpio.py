@@ -59,7 +59,7 @@ def remove_all_subsumed(df: DataFrame) -> DataFrame:
         .agg(F.collect_list(F.struct(df[lexical_variant_col_name], df[offset_col_name], df[concept_id_col_name]))
              .alias("lexeme_indexes"))
     # Remove all subsumed annotations
-    remove_subsumed_udf = F.udf(lambda offsets: flatten_overlaps(offsets), flatten_overlaps_schema(concept_code_col_name,
+    remove_subsumed_udf = F.udf(lambda self, offsets: flatten_overlaps(offsets), flatten_overlaps_schema(concept_code_col_name,
                                                                                                  lexeme_col_name,
                                                                                                  begin_col_name,
                                                                                                  end_col_name))
