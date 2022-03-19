@@ -19,6 +19,7 @@ import pyspark.sql.functions as F
 from pyspark.sql.types import ArrayType, StringType
 from transformers import BertTokenizer, AutoTokenizer, AutoModel, AutoConfig
 
+from clinicallanguageresource.dictprep.site_modify.column_names import *
 import clinicallanguageresource.dictprep.site_modify.nlpio as nlpio
 from clinicallanguageresource.dictprep.site_modify import sparkutils
 
@@ -70,9 +71,9 @@ if __name__ == '__main__':
     df: DataFrame = nlpio.get_nlp_artifact_table(spark)
     df = nlpio.get_eligible_nlp_artifacts(df)
     df = nlpio.remove_all_subsumed(df)
-    df = df.select(df[nlpio.concept_code_col_name],
-                   F.lower(df[nlpio.containing_sentence_col_name]).alias(nlpio.containing_sentence_col_name),
-                   F.lower(df[nlpio.lexeme_col_name]).alias(nlpio.lexeme_col_name)).distinct()
+    df = df.select(df[concept_code_col_name],
+                   F.lower(df[containing_sentence_col_name]).alias(containing_sentence_col_name),
+                   F.lower(df[lexeme_col_name]).alias(lexeme_col_name)).distinct()
 
     # Setup BERT
     tokenizer: BertTokenizer = AutoTokenizer.from_pretrained("./model/bio_clinbert_model",
@@ -83,10 +84,10 @@ if __name__ == '__main__':
 
     # Run embedding generation
     embeddings_udf = F.udf(lambda lex, sent: generate_embedding(lex, sent), ArrayType(StringType()))
-    df = df.select(df[nlpio.concept_code_col_name],
-                   df[nlpio.lexeme_col_name],
-                   F.explode(embeddings_udf(df[nlpio.lexeme_col_name],
-                                            df[nlpio.containing_sentence_col_name])).alias("embedding"))
+    df = df.select(df[concept_code_col_name],
+                   df[lexeme_col_name],
+                   F.explode(embeddings_udf(df[lexeme_col_name],
+                                            df[containing_sentence_col_name])).alias(raw_embedding_col_name))
 
     # Save results as CSV
     df.write.csv(path=save_embeddings_dir, mode="overwrite", header=True)

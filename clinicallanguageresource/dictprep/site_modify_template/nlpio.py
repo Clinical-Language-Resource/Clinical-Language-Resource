@@ -7,20 +7,8 @@ adjusted based on use case and needs, with individual methods also overloaded as
 from pyspark.sql import SparkSession, DataFrame
 import pyspark.sql.functions as F
 
+from column_names import *
 from clinicallanguageresource.dictprep.util.nlpannotations import flatten_overlaps, flatten_overlaps_schema
-
-# Column names assume OHDSI CDM note_nlp table format, adjust accordingly for your dataset
-note_id_col_name = "note_id"
-containing_sentence_col_name = "snippet"
-lexical_variant_col_name = "lexical_variant"
-concept_id_col_name = "note_nlp_concept_id"
-offset_col_name = "offset"
-
-# Column names used internally. Only need to change this if name conflicts with an existing column in your import
-concept_code_col_name = "concept"
-lexeme_col_name = "lexeme"
-begin_col_name = "begin"
-end_col_name = "end"
 
 
 def get_nlp_artifact_table(spark: SparkSession) -> DataFrame:
@@ -57,16 +45,18 @@ def remove_all_subsumed(df: DataFrame) -> DataFrame:
         df[note_id_col_name],
         df[containing_sentence_col_name]) \
         .agg(F.collect_list(F.struct(df[lexical_variant_col_name], df[offset_col_name], df[concept_id_col_name]))
-             .alias("lexeme_indexes"))
+             .alias(lexeme_index_column_name))
     # Remove all subsumed annotations
-    remove_subsumed_udf = F.udf(lambda self, offsets: flatten_overlaps(offsets), flatten_overlaps_schema(concept_code_col_name,
-                                                                                                 lexeme_col_name,
-                                                                                                 begin_col_name,
-                                                                                                 end_col_name))
+    remove_subsumed_udf = F.udf(lambda self, offsets: flatten_overlaps(offsets),
+                                flatten_overlaps_schema(concept_code_col_name,
+                                                        lexeme_col_name,
+                                                        begin_col_name,
+                                                        end_col_name))
     df = df.select(df[note_id_col_name], df[containing_sentence_col_name],
-                   F.explode(remove_subsumed_udf(df[containing_sentence_col_name], df["lexeme_indexes"])).alias("lstc"))
+                   F.explode(remove_subsumed_udf(df[containing_sentence_col_name],
+                                                 df[lexeme_index_column_name])).alias(lexeme_extract_struct_name))
     # Keep only concept_code, sentence, lexeme, and deduplicate
-    df = df.select(F.col("lstc." + concept_code_col_name).alias(concept_code_col_name),
+    df = df.select(F.col(lexeme_extract_struct_name + "." + concept_code_col_name).alias(concept_code_col_name),
                    df[containing_sentence_col_name],
-                   F.col("lstc." + lexeme_col_name).alias(lexeme_col_name)).distinct()
+                   F.col(lexeme_extract_struct_name + "." + lexeme_col_name).alias(lexeme_col_name)).distinct()
     return df

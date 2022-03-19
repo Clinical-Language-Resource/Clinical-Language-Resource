@@ -39,6 +39,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 from clinicallanguageresource.dictprep.site_modify import sparkutils, nlpio
+from clinicallanguageresource.dictprep.site_modify.column_names import *
 
 os.environ['OPENBLAS_NUM_THREADS'] = "1"  # Prevent KMeans on more than 1 thread due to executing multiple partitions
 
@@ -104,21 +105,23 @@ if __name__ == '__main__':
     df: DataFrame = spark.read.format("csv").option("header", True).load(embeddings_input_dir)
 
     # Aggregate on lexeme to get a per-lexeme term count and a collection of relevant embeddings
-    df = df.select(df[nlpio.lexeme_col_name], df["embedding"], F.lit(1).alias("lexeme_count"))\
+    df = df.select(df[nlpio.lexeme_col_name], df[raw_embedding_col_name], F.lit(1).alias(lexeme_count_col_name))\
         .groupBy(df[nlpio.lexeme_col_name])\
-        .agg(F.collect_list(df["embedding"]).alias("embedding"), F.sum(F.col("lexeme_count")).alias("lexeme_count"))
+        .agg(F.collect_list(df[raw_embedding_col_name]).alias(raw_embedding_col_name),
+             F.sum(F.col(lexeme_count_col_name)).alias(lexeme_count_col_name))
     if tf_filter > 0:
-        df = df.filter(df["count"] >= tf_filter)
+        df = df.filter(df[lexeme_count_col_name] >= tf_filter)
 
     # Find cluster centers
     center_search_udf = F.udf(lambda embeddings, count: find_cluster_centers(embeddings, count), ArrayType(StringType()))
     df = df.select(df[nlpio.lexeme_col_name],
-                   F.explode(center_search_udf(df["embedding"], df["lexeme_count"])).alias("cluster_center"))
+                   F.explode(center_search_udf(df[raw_embedding_col_name], df[lexeme_count_col_name]))
+                   .alias(cluster_center_col_name))
     # Add a sense ID. initialize random ordering for consistency
     df = df.select(df[nlpio.lexeme_col_name],
                    F.row_number().over(
                        Window.partitionBy(df[nlpio.lexeme_col_name]).orderBy(F.rand(1))).alias("sense_id"),
-                   df["cluster_center"])
+                   df[cluster_center_col_name])
 
     df.write.csv(path=writedir, mode="overwrite", header=True)
 
