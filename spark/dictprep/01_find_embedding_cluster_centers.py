@@ -2,7 +2,7 @@
 Attempts to identify embedding clusters for sense disambiguation purposes and to reduce duplicate lexeme entries in
 the final index/dictionary. Will return the list of cluster centers
 
-Output format:  lexeme, lexeme_freq, cluster center for sense (base64 encoded)
+Output format:  lexeme, sense id, cluster center for sense (base64 encoded)
 
 General Procedure for each concept code:
 
@@ -34,6 +34,7 @@ import pyspark.sql.functions as F
 import numpy as np
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import ArrayType, StringType
+from pyspark.sql.window import Window
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
@@ -112,8 +113,12 @@ if __name__ == '__main__':
     # Find cluster centers
     center_search_udf = F.udf(lambda embeddings, count: find_cluster_centers(embeddings, count), ArrayType(StringType()))
     df = df.select(df[nlpio.lexeme_col_name],
-                   df["lexeme_count"],
-                   F.explode(center_search_udf(df["embedding"], df["lexeme_count"])).alias("cluster_centers"))
+                   F.explode(center_search_udf(df["embedding"], df["lexeme_count"])).alias("cluster_center"))
+    # Add a sense ID. initialize random ordering for consistency
+    df = df.select(df[nlpio.lexeme_col_name],
+                   F.row_number().over(
+                       Window.partitionBy(df[nlpio.lexeme_col_name]).orderBy(F.rand(1))).alias("sense_id"),
+                   df["cluster_center"])
 
     df.write.csv(path=writedir, mode="overwrite", header=True)
 
