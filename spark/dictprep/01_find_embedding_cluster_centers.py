@@ -121,7 +121,7 @@ if __name__ == '__main__':
         df = df.filter(F.length(df[lexeme_col_name]) >= tl_filter)
 
     # Find cluster centers
-    center_search_udf = F.udf(lambda embeddings, count: find_cluster_centers(embeddings), ArrayType(StringType()))
+    center_search_udf = F.udf(lambda embeddings: find_cluster_centers(embeddings), ArrayType(StringType()))
     df = df.select(df[lexeme_col_name],
                    F.explode(center_search_udf(df[raw_embedding_col_name]))
                    .alias(cluster_center_col_name))
