@@ -20,4 +20,4 @@ raw_embedding_col_name = "embedding"
 lexeme_count_col_name = "lexeme_count"
 cluster_center_col_name = "cluster_center"
 sense_id_col_name = "sense_id"
-
+lexeme_sample_idx_col_name = "lexeme_sample_idx"

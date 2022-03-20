@@ -18,7 +18,8 @@ Required spark parameters:
     2) spark.clr.max_wsd_clusters - the maximal number of clusters to attempt for sense disambiguation purposes
     3) spark.clr.min_lexeme_length - filters out lexemes that are shorter than this character limit. 0=no filter
     4) spark.clr.min_wsd_freq - the minimal frequency to attempt wsd for.
-    5) spark.clr.cluster_center_output_dir - Where to write output
+    5) spark.clr.max_wsd_sample - the maximum number of embeddings to sample for a lexeme. 0 = no sampling/use all
+    6) spark.clr.cluster_center_output_dir - Where to write output
 
 If frequency is below min_wsd_freq, all uses are assumed to belong to the same sense
 """
@@ -98,6 +99,7 @@ if __name__ == '__main__':
     max_wsd_clusters = int(spark.sparkContext.getConf().get('spark.clr.max_wsd_clusters'))
     min_wsd_freq = int(spark.sparkContext.getConf().get("spark.clr.min_wsd_freq"))
     tl_filter = int(spark.sparkContext.getConf().get("spark.clr.min_lexeme_length"))
+    max_wsd_sample = int(spark.sparkContext.getConf().get("spark.clr.max_wsd_sample"))
     writedir = spark.sparkContext.getConf().get("spark.clr.cluster_center_output_dir")
 
     # Read in dataframe
@@ -106,6 +108,12 @@ if __name__ == '__main__':
     # Filter invalid embeddings
     embedding_valid_udf = F.udf(lambda s: embedding_valid(s), BooleanType())
     df = df.filter(embedding_valid_udf(df[raw_embedding_col_name]))
+
+    # Sample if necessary
+    if max_wsd_sample > 0:
+        df = df.withColumn(lexeme_sample_idx_col_name,
+                           F.row_number().over(Window.partitionBy(df[lexeme_col_name]).orderBy(F.rand())))
+        df = df.filter(df[lexeme_sample_idx_col_name] <= max_wsd_sample)
 
     # Aggregate on lexeme to get a per-lexeme term count and a collection of relevant embeddings
     df = df.select(df[lexeme_col_name], df[raw_embedding_col_name], F.lit(1).alias(lexeme_count_col_name))\
