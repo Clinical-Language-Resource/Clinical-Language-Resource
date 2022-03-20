@@ -88,7 +88,8 @@ def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
                 silhouette_avg = silhouette_score(npembeddings, cluster_labels)
                 local_centers.append(km.cluster_centers_)
                 silhouettes.append(silhouette_avg)
-            except Exception:
+            except Exception as e:
+                print(e)
                 raise Exception("Failed to conduct kmeans on embedding: " + base64.b64encode(npembeddings.tobytes()).decode("ascii"))
         best_silhouette = max(silhouettes)
         packed_centers = local_centers[silhouettes.index(best_silhouette)]
@@ -99,6 +100,7 @@ def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
     else:
         # Perform single-k k-means clustering
         npembeddings = np.asarray(embeddings)
+        # np.reshape(npembeddings, (int(npembeddings.size/384), 384))
         km: KMeans = KMeans(n_clusters=1, n_init=100)
         km.fit_predict(npembeddings)
         packed_centers = km.cluster_centers_
