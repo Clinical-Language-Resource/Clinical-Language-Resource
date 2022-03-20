@@ -49,7 +49,7 @@ def encode_ndarray(embedding: np.ndarray) -> str:
     return base64.b64encode(embedding.tobytes()).decode('ascii')
 
 
-def find_cluster_centers(embeddings_base64: List[str], lexemecount: int) -> List[str]:
+def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
     # Embeddings will occasionally output a "zero'd" vector with invalid values, presumably due to an overflow(?)
     # Not sure why this happens but regardless we want to filter this out TODO investigate this
     [invalid] = struct.unpack('<d', base64.b64decode('AADA/wAAwP8='))
@@ -71,7 +71,7 @@ def find_cluster_centers(embeddings_base64: List[str], lexemecount: int) -> List
         return []
 
     # Now perform WSD deconfliction if necessary, otherwise just treat as one cluster and spit out the cluster center
-    if lexemecount >= min_wsd_freq:
+    if len(embeddings) >= min_wsd_freq:
         silhouettes = []
         local_centers: List[np.ndarray] = []
         # Perform k-means clustering for every k [1, min(|embeddings|, max_wsd_clusters)] and find best silhouette score
@@ -121,9 +121,9 @@ if __name__ == '__main__':
         df = df.filter(F.length(df[lexeme_col_name]) >= tl_filter)
 
     # Find cluster centers
-    center_search_udf = F.udf(lambda embeddings, count: find_cluster_centers(embeddings, count), ArrayType(StringType()))
+    center_search_udf = F.udf(lambda embeddings, count: find_cluster_centers(embeddings), ArrayType(StringType()))
     df = df.select(df[lexeme_col_name],
-                   F.explode(center_search_udf(df[raw_embedding_col_name], df[lexeme_count_col_name]))
+                   F.explode(center_search_udf(df[raw_embedding_col_name]))
                    .alias(cluster_center_col_name))
     # Add a sense ID. initialize random ordering for consistency
     df = df.select(df[nlpio.lexeme_col_name],
