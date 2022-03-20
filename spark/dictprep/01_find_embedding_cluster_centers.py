@@ -34,7 +34,7 @@ from typing import List
 import pyspark.sql.functions as F
 import numpy as np
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.types import ArrayType, StringType
+from pyspark.sql.types import ArrayType, StringType, BooleanType
 from pyspark.sql.window import Window
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -49,21 +49,29 @@ def encode_ndarray(embedding: np.ndarray) -> str:
     return base64.b64encode(embedding.tobytes()).decode('ascii')
 
 
-def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
+def embedding_valid(embedding_base64: str) -> bool:
     # Embeddings will occasionally output a "zero'd" vector with invalid values, presumably due to an overflow(?)
     # Not sure why this happens but regardless we want to filter this out TODO investigate this
+    # Will also occasionally output invalid NaN and/or infinite values
     [invalid] = struct.unpack('<d', base64.b64decode('AADA/wAAwP8='))
+    npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding_base64))
+    if np.any(np.isnan(npemb)) or not np.all(np.isfinite(npemb)):
+        print("Skipping invalid embedding for NaN or not finite: ", embedding_base64)
+        return False
+    if npemb.max != invalid and np.min != invalid:
+        return True
+    return False
+
+
+def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
+
     embeddings: List[np.ndarray] = []
 
     # First, convert base64-encoded
     for embedding in embeddings_base64:
         try:
             npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding))
-            if np.any(np.isnan(npemb)) or not np.all(np.isfinite(npemb)):
-                print("Skipping invalid embedding for NaN or not finite: ", embedding)
-                continue
-            if npemb.max != invalid and np.min != invalid:
-                embeddings.append(npemb)
+            embeddings.append(npemb)
         except Exception as e:
             print("Skipping invalid embedding for other error: ", embedding)
             print(e)
@@ -112,9 +120,13 @@ if __name__ == '__main__':
     # Read in dataframe
     df: DataFrame = spark.read.format("csv").option("header", True).load(embeddings_input_dir)
 
+    # Filter invalid embeddings
+    embedding_valid_udf = F.udf(lambda s: embedding_valid(s), BooleanType())
+    df = df.filter(embedding_valid_udf(df[raw_embedding_col_name]))
+
     # Aggregate on lexeme to get a per-lexeme term count and a collection of relevant embeddings
-    df = df.select(df[nlpio.lexeme_col_name], df[raw_embedding_col_name], F.lit(1).alias(lexeme_count_col_name))\
-        .groupBy(df[nlpio.lexeme_col_name])\
+    df = df.select(df[lexeme_col_name], df[raw_embedding_col_name], F.lit(1).alias(lexeme_count_col_name))\
+        .groupBy(df[lexeme_col_name])\
         .agg(F.collect_list(df[raw_embedding_col_name]).alias(raw_embedding_col_name),
              F.sum(F.col(lexeme_count_col_name)).alias(lexeme_count_col_name))
     if tl_filter > 0:
@@ -124,12 +136,14 @@ if __name__ == '__main__':
     center_search_udf = F.udf(lambda embeddings: find_cluster_centers(embeddings), ArrayType(StringType()))
     df = df.select(df[lexeme_col_name],
                    F.explode(center_search_udf(df[raw_embedding_col_name]))
-                   .alias(cluster_center_col_name))
+                   .alias(cluster_center_col_name),
+                   df[lexeme_count_col_name])
     # Add a sense ID. initialize random ordering for consistency
     df = df.select(df[nlpio.lexeme_col_name],
                    F.row_number().over(
                        Window.partitionBy(df[lexeme_col_name]).orderBy(F.rand(1))).alias(sense_id_col_name),
-                   df[cluster_center_col_name])
+                   df[cluster_center_col_name],
+                   df[lexeme_count_col_name])
 
     df.write.csv(path=writedir, mode="overwrite", header=True)
 
