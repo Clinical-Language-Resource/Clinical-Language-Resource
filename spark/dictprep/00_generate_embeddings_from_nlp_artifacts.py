@@ -60,6 +60,8 @@ def generate_embedding(lexeme: str, sentence: str):
             # Not sure why this happens but regardless we want to filter this out TODO investigate this
             [invalid] = st.unpack('<d', base64.b64decode('AADA/wAAwP8='))
             npemb: np.ndarray = np.array(word_tokens_output)
+            if np.any(np.isnan(npemb)) or not np.all(np.isfinite(npemb)):
+                continue
             if npemb.max != invalid and np.min != invalid:
                 # Convert to base64 for ease of export (and can always convert back for mild performance cost anyways)
                 # Does cost more in storage space though
