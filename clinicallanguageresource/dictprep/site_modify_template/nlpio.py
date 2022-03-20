@@ -7,7 +7,7 @@ adjusted based on use case and needs, with individual methods also overloaded as
 from pyspark.sql import SparkSession, DataFrame
 import pyspark.sql.functions as F
 
-from column_names import *
+from clinicallanguageresource.dictprep.site_modify.column_names import *
 from clinicallanguageresource.dictprep.util.nlpannotations import flatten_overlaps, flatten_overlaps_schema
 
 
