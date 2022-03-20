@@ -6,12 +6,9 @@ Output format:  lexeme, sense id, cluster center for sense (base64 encoded)
 
 General Procedure for each concept code:
 
-For each distinct lexeme and cluster count i from 1 to spark.clr.max_wsd_clusters (inclusive)
-    1) Generates i clusters on the embedding index
-    2) Calculates silhouette score to approximate whether this # of clusters is appropriate
-
-The cluster count and clusters from the maximum silhouette score is retained.
-The mean point of the cluster is retained as that sense's vector representation
+1) Calculates gap statistic to estimate number of clusters k, up to max_wsd_clusters
+2) Use KMeans to determine cluster centers.
+3) If k == 1, then use the arithmetic mean of the cluster as the centerpoint
 
 Requires prior completion of 00_generate_embeddings_from_nlp_artifacts.py
 
@@ -26,18 +23,17 @@ Required spark parameters:
 If frequency is below min_wsd_freq, all uses are assumed to belong to the same sense
 """
 
-import os
 import base64
-import struct
+import os
 from typing import List
 
-import pyspark.sql.functions as F
 import numpy as np
+import pyspark.sql.functions as F
+from gap_statistic import OptimalK
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import ArrayType, StringType, BooleanType
 from pyspark.sql.window import Window
 from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
 
 from clinicallanguageresource.dictprep.site_modify import sparkutils, nlpio
 from clinicallanguageresource.dictprep.site_modify.column_names import *
@@ -77,37 +73,22 @@ def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
 
     # Now perform WSD deconfliction if necessary, otherwise just treat as one cluster and spit out the cluster center
     if len(embeddings) >= min_wsd_freq:
-        silhouettes = []
-        local_centers: List[np.ndarray] = []
-        # Perform k-means clustering for every k [1, min(|embeddings|, max_wsd_clusters)] and find best silhouette score
-        for k in range(1, min(len(embeddings), max_wsd_clusters + 1)):
-            npembeddings = np.asarray(embeddings)
-            km: KMeans = KMeans(n_clusters=k, n_init=100)
-            try:
-                cluster_labels = km.fit_predict(npembeddings)
-                silhouette_avg = silhouette_score(npembeddings, cluster_labels)
-                local_centers.append(km.cluster_centers_)
-                silhouettes.append(silhouette_avg)
-            except Exception as e:
-                print(e)
-                raise Exception("Failed to conduct kmeans on embedding: " + base64.b64encode(npembeddings.tobytes()).decode("ascii"))
-        best_silhouette = max(silhouettes)
-        packed_centers = local_centers[silhouettes.index(best_silhouette)]
-        ret = []
-        for center in packed_centers:
-            ret.append(encode_ndarray(center))
-        return ret
-    else:
-        # Perform single-k k-means clustering
         npembeddings = np.asarray(embeddings)
-        # np.reshape(npembeddings, (int(npembeddings.size/384), 384))
-        km: KMeans = KMeans(n_clusters=1, n_init=100)
-        km.fit_predict(npembeddings)
-        packed_centers = km.cluster_centers_
-        ret = []
-        for center in packed_centers:
-            ret.append(encode_ndarray(center))
-        return ret
+        # Use the gap statistic to estimate k for K-Means
+        optimal_k = OptimalK()
+        n_clusters = optimal_k(npembeddings, cluster_array=range(1, max_wsd_clusters + 1))
+        if n_clusters > 1:
+            km: KMeans = KMeans(n_clusters=n_clusters, n_init=100)
+            km.fit_predict(npembeddings)
+            ret: List[str] = []
+            for center in km.cluster_centers_:
+                ret.append(encode_ndarray(center))
+            return ret
+        else:
+            return [encode_ndarray(np.asarray(embeddings).mean(axis=0, dtype=np.float64))]
+    else:
+        # Just return the arithmetic mean
+        return [encode_ndarray(np.asarray(embeddings).mean(axis=0, dtype=np.float64))]
 
 
 if __name__ == '__main__':
