@@ -19,7 +19,7 @@ Requires prior completion of 00_generate_embeddings_from_nlp_artifacts.py
 Required spark parameters:
     1) spark.clr.embedding_input_dir - where embeddings were written in prior step
     2) spark.clr.max_wsd_clusters - the maximal number of clusters to attempt for sense disambiguation purposes
-    3) spark.clr.tf_filter - filters out lexemes that occur less than n times. Useful for deidentification. 0=no filter
+    3) spark.clr.min_lexeme_length - filters out lexemes that are shorter than this character limit. 0=no filter
     4) spark.clr.min_wsd_freq - the minimal frequency to attempt wsd for.
 
 If frequency is below min_wsd_freq, all uses are assumed to belong to the same sense
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     embeddings_input_dir = spark.sparkContext.getConf().get('spark.clr.embedding_input_dir')
     max_wsd_clusters = int(spark.sparkContext.getConf().get('spark.clr.max_wsd_clusters'))
     min_wsd_freq = int(spark.sparkContext.getConf().get("spark.clr.min_wsd"))
-    tf_filter = int(spark.sparkContext.getConf().get("spark.clr.tf_filter"))
+    tl_filter = int(spark.sparkContext.getConf().get("spark.clr.min_lexeme_length"))
     writedir = spark.sparkContext.getConf().get("spark.clr.cluster_center_output_dir")
 
     # Read in dataframe
@@ -109,18 +109,18 @@ if __name__ == '__main__':
         .groupBy(df[nlpio.lexeme_col_name])\
         .agg(F.collect_list(df[raw_embedding_col_name]).alias(raw_embedding_col_name),
              F.sum(F.col(lexeme_count_col_name)).alias(lexeme_count_col_name))
-    if tf_filter > 0:
-        df = df.filter(df[lexeme_count_col_name] >= tf_filter)
+    if tl_filter > 0:
+        df = df.filter(F.length(df[lexeme_col_name]) >= tl_filter)
 
     # Find cluster centers
     center_search_udf = F.udf(lambda embeddings, count: find_cluster_centers(embeddings, count), ArrayType(StringType()))
-    df = df.select(df[nlpio.lexeme_col_name],
+    df = df.select(df[lexeme_col_name],
                    F.explode(center_search_udf(df[raw_embedding_col_name], df[lexeme_count_col_name]))
                    .alias(cluster_center_col_name))
     # Add a sense ID. initialize random ordering for consistency
     df = df.select(df[nlpio.lexeme_col_name],
                    F.row_number().over(
-                       Window.partitionBy(df[nlpio.lexeme_col_name]).orderBy(F.rand(1))).alias("sense_id"),
+                       Window.partitionBy(df[lexeme_col_name]).orderBy(F.rand(1))).alias(sense_id_col_name),
                    df[cluster_center_col_name])
 
     df.write.csv(path=writedir, mode="overwrite", header=True)
