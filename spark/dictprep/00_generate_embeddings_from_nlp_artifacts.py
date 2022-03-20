@@ -11,6 +11,7 @@ Required spark parameter: spark.clr.embedding_output_dir - where to write result
 
 import base64
 import re
+import struct as st
 
 import numpy as np
 import torch
@@ -54,9 +55,15 @@ def generate_embedding(lexeme: str, sentence: str):
             states = output.hidden_states
             output = torch.stack([states[i] for i in layers]).sum(0).squeeze()
             word_tokens_output = output[encoded_token_idxs].mean(dim=0)
-            # Convert to base64 for ease of export (and we can always convert back for mild performance cost anyways)
-            # Does cost more in storage space though
-            ret_vectors.append(base64.b64encode(np.array(word_tokens_output).tobytes()).decode('ascii'))
+
+            # Embeddings will occasionally output a "zero'd" vector with invalid values, presumably due to overflow(?)
+            # Not sure why this happens but regardless we want to filter this out TODO investigate this
+            [invalid] = st.unpack('<d', base64.b64decode('AADA/wAAwP8='))
+            npemb: np.ndarray = np.array(word_tokens_output)
+            if npemb.max != invalid and np.min != invalid:
+                # Convert to base64 for ease of export (and can always convert back for mild performance cost anyways)
+                # Does cost more in storage space though
+                ret_vectors.append(base64.b64encode(npemb.tobytes()).decode('ascii'))
         except Exception:
             continue
     return ret_vectors

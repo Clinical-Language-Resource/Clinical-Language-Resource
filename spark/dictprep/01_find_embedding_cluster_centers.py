@@ -57,9 +57,12 @@ def find_cluster_centers(embeddings_base64: List[str], lexemecount: int) -> List
 
     # First, convert base64-encoded
     for embedding in embeddings_base64:
-        npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding))
-        if npemb.max != invalid and np.min != invalid:
-            embeddings.append(npemb)
+        try:
+            npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding))
+            if npemb.max != invalid and np.min != invalid:
+                embeddings.append(npemb)
+        except Exception:
+            print("Skipping invalid embedding: ", embedding)
     if len(embeddings) == 0:
         return []
 
