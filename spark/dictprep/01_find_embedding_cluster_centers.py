@@ -21,6 +21,7 @@ Required spark parameters:
     2) spark.clr.max_wsd_clusters - the maximal number of clusters to attempt for sense disambiguation purposes
     3) spark.clr.min_lexeme_length - filters out lexemes that are shorter than this character limit. 0=no filter
     4) spark.clr.min_wsd_freq - the minimal frequency to attempt wsd for.
+    5) spark.clr.cluster_center_output_dir - Where to write output
 
 If frequency is below min_wsd_freq, all uses are assumed to belong to the same sense
 """
@@ -97,7 +98,7 @@ if __name__ == '__main__':
     spark: SparkSession = sparkutils.setup_spark_session("CLR-Generate-Embeddings")
     embeddings_input_dir = spark.sparkContext.getConf().get('spark.clr.embedding_input_dir')
     max_wsd_clusters = int(spark.sparkContext.getConf().get('spark.clr.max_wsd_clusters'))
-    min_wsd_freq = int(spark.sparkContext.getConf().get("spark.clr.min_wsd"))
+    min_wsd_freq = int(spark.sparkContext.getConf().get("spark.clr.min_wsd_freq"))
     tl_filter = int(spark.sparkContext.getConf().get("spark.clr.min_lexeme_length"))
     writedir = spark.sparkContext.getConf().get("spark.clr.cluster_center_output_dir")
 
