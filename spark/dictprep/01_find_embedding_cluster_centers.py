@@ -59,7 +59,7 @@ def find_cluster_centers(embeddings_base64: List[str], lexemecount: int) -> List
     for embedding in embeddings_base64:
         try:
             npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding))
-            if not np.isfinite(npemb).all():
+            if np.any(np.isnan(npemb)) and not np.all(np.isfinite(npemb)):
                 print("Skipping invalid embedding for not finite: ", embedding)
                 continue
             if npemb.max != invalid and np.min != invalid:
