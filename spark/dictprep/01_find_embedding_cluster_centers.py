@@ -53,20 +53,17 @@ def embedding_valid(embedding_base64: str) -> bool:
     # Embeddings will occasionally output a "zero'd" vector with invalid values, presumably due to an overflow(?)
     # Not sure why this happens but regardless we want to filter this out TODO investigate this
     # Will also occasionally output invalid NaN and/or infinite values
-    [invalid] = struct.unpack('<d', base64.b64decode('AADA/wAAwP8='))
     npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding_base64))
     if np.any(np.isnan(npemb)) or not np.all(np.isfinite(npemb)):
         print("Skipping invalid embedding for NaN or not finite: ", embedding_base64)
         return False
-    if npemb.max != invalid and np.min != invalid:
-        return True
-    return False
+    if embedding_base64.startswith('AADA/wAAwP8AAMD'):
+        return False
+    return True
 
 
 def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
-
     embeddings: List[np.ndarray] = []
-
     # First, convert base64-encoded
     for embedding in embeddings_base64:
         try:
@@ -86,10 +83,13 @@ def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
         for k in range(1, min(len(embeddings), max_wsd_clusters + 1)):
             npembeddings = np.asarray(embeddings)
             km: KMeans = KMeans(n_clusters=k, n_init=100)
-            cluster_labels = km.fit_predict(npembeddings)
-            silhouette_avg = silhouette_score(npembeddings, cluster_labels)
-            local_centers.append(km.cluster_centers_)
-            silhouettes.append(silhouette_avg)
+            try:
+                cluster_labels = km.fit_predict(npembeddings)
+                silhouette_avg = silhouette_score(npembeddings, cluster_labels)
+                local_centers.append(km.cluster_centers_)
+                silhouettes.append(silhouette_avg)
+            except Exception:
+                raise Exception("Failed to conduct kmeans on embedding: " + base64.b64encode(npembeddings.tobytes()).decode("ascii"))
         best_silhouette = max(silhouettes)
         packed_centers = local_centers[silhouettes.index(best_silhouette)]
         ret = []
