@@ -54,11 +54,8 @@ def embedding_valid(embedding_base64: str) -> bool:
     # Embeddings will occasionally output a "zero'd" vector with invalid values, presumably due to an overflow(?)
     # Not sure why this happens but regardless we want to filter this out TODO investigate this
     # Will also occasionally output invalid NaN and/or infinite values
-    npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding_base64))
+    npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding_base64), dtype="float32")
     if np.any(np.isnan(npemb)) or not np.all(np.isfinite(npemb)):
-        print("Skipping invalid embedding for NaN or not finite: ", embedding_base64)
-        return False
-    if embedding_base64.startswith('AADA/wAAwP8AAMD'):
         return False
     return True
 
@@ -71,12 +68,8 @@ def find_cluster_centers(embeddings_base64: List[str]) -> List[Tuple[int, str]]:
     embeddings: List[np.ndarray] = []
     # First, convert base64-encoded
     for embedding in embeddings_base64:
-        try:
-            npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding))
-            embeddings.append(npemb)
-        except Exception as e:
-            print("Skipping invalid embedding for other error: ", embedding)
-            print(e)
+        npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding), dtype="float32")
+        embeddings.append(npemb)
     if len(embeddings) == 0:
         return []
 
