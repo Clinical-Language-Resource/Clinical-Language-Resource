@@ -20,19 +20,23 @@ Required spark parameters:
     4) spark.clr.min_wsd_freq - the minimal frequency to attempt wsd for.
     5) spark.clr.max_wsd_sample - the maximum number of embeddings to sample for a lexeme. 0 = no sampling/use all
     6) spark.clr.cluster_center_output_dir - Where to write output
+    7) spark.clr.min_cluster_size - the absolute minimum cluster size, otherwise filter out
+    8) spark.clr.min_cluster_size_prop - Minimum cluster size as a proportion of sample size (up to max_wsd_sample)
 
-If frequency is below min_wsd_freq, all uses are assumed to belong to the same sense
+If frequency is below min_wsd_freq, all uses are assumed to belong to the same sense. If both min_cluster_size and
+min_cluster_size_prop is defined, whichever is the larger of the two will be used.
 """
 
 import base64
 import os
-from typing import List
+import math
+from typing import List, Tuple
 
 import numpy as np
 import pyspark.sql.functions as F
 from gap_statistic import OptimalK
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.types import ArrayType, StringType, BooleanType
+from pyspark.sql.types import ArrayType, StringType, BooleanType, DataType, IntegerType, StructType, StructField
 from pyspark.sql.window import Window
 from sklearn.cluster import KMeans
 
@@ -59,7 +63,11 @@ def embedding_valid(embedding_base64: str) -> bool:
     return True
 
 
-def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
+def num_samples_in_cluster(cluster_idx: int, labels) -> int:
+    return len(np.where(labels == cluster_idx)[0])
+
+
+def find_cluster_centers(embeddings_base64: List[str]) -> List[Tuple[int, str]]:
     embeddings: List[np.ndarray] = []
     # First, convert base64-encoded
     for embedding in embeddings_base64:
@@ -72,8 +80,10 @@ def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
     if len(embeddings) == 0:
         return []
 
+    cluster_size_limit = max(math.floor(min_cluster_size_prop * len(embeddings)), min_cluster_size)
+
     # Now perform WSD deconfliction if necessary, otherwise just treat as one cluster and spit out the cluster center
-    if len(embeddings) >= min_wsd_freq:
+    if len(embeddings) >= min_wsd_freq and len(embeddings) >= cluster_size_limit:
         npembeddings = np.asarray(embeddings)
         # Use the gap statistic to estimate k for K-Means
         optimal_k = OptimalK()
@@ -81,15 +91,28 @@ def find_cluster_centers(embeddings_base64: List[str]) -> List[str]:
         if n_clusters > 1:
             km: KMeans = KMeans(n_clusters=n_clusters, n_init=100)
             km.fit_predict(npembeddings)
-            ret: List[str] = []
+            ret: List[Tuple[int, str]] = []
+            idx: int = 0
             for center in km.cluster_centers_:
-                ret.append(encode_ndarray(center))
+                cluster_size = num_samples_in_cluster(idx, km.labels_)
+                if cluster_size >= cluster_size_limit:
+                    ret.append((cluster_size, encode_ndarray(center)))
             return ret
         else:
-            return [encode_ndarray(np.asarray(embeddings).mean(axis=0, dtype=np.float64))]
+            return [(len(embeddings), encode_ndarray(np.asarray(embeddings).mean(axis=0, dtype=np.float64)))]
     else:
-        # Just return the arithmetic mean
-        return [encode_ndarray(np.asarray(embeddings).mean(axis=0, dtype=np.float64))]
+        if len(embeddings) >= cluster_size_limit:
+            # Just return the arithmetic mean
+            return [(len(embeddings), encode_ndarray(np.asarray(embeddings).mean(axis=0, dtype=np.float64)))]
+        else:
+            return []
+
+
+def find_cluster_centers_schema() -> DataType:
+    return ArrayType(StructType([
+        StructField(cluster_size_col_name, IntegerType(), False),
+        StructField(raw_embedding_col_name, StringType(), False)
+    ]))
 
 
 if __name__ == '__main__':
@@ -101,6 +124,8 @@ if __name__ == '__main__':
     tl_filter = int(spark.sparkContext.getConf().get("spark.clr.min_lexeme_length"))
     max_wsd_sample = int(spark.sparkContext.getConf().get("spark.clr.max_wsd_sample"))
     writedir = spark.sparkContext.getConf().get("spark.clr.cluster_center_output_dir")
+    min_cluster_size = int(spark.sparkContext.getConf().get("spark.clr.min_cluster_size"))
+    min_cluster_size_prop = float(spark.sparkContext.getConf().get("spark.clr.min_cluster_size_prop"))
 
     # Read in dataframe
     df: DataFrame = spark.read.format("csv").option("header", True).load(embeddings_input_dir)
@@ -108,6 +133,11 @@ if __name__ == '__main__':
     # Filter invalid embeddings
     embedding_valid_udf = F.udf(lambda s: embedding_valid(s), BooleanType())
     df = df.filter(embedding_valid_udf(df[raw_embedding_col_name]))
+
+    # Cut down to distinct embeddings to prevent duplicate sentences across different notes (e.g. templates)
+    df = df.select(df[concept_code_col_name],
+                   df[lexeme_col_name],
+                   df[raw_embedding_col_name]).distinct()
 
     # Sample if necessary
     if max_wsd_sample > 0:
@@ -124,15 +154,20 @@ if __name__ == '__main__':
         df = df.filter(F.length(df[lexeme_col_name]) >= tl_filter)
 
     # Find cluster centers
-    center_search_udf = F.udf(lambda embeddings: find_cluster_centers(embeddings), ArrayType(StringType()))
+    center_search_udf = F.udf(lambda embeddings: find_cluster_centers(embeddings), find_cluster_centers_schema())
     df = df.select(df[lexeme_col_name],
-                   F.explode(center_search_udf(df[raw_embedding_col_name]))
-                   .alias(cluster_center_col_name),
+                   F.explode(center_search_udf(df[raw_embedding_col_name])).alias(cluster_info_struct_name),
                    df[lexeme_count_col_name])
-    # Add a sense ID. initialize random ordering for consistency
+    # And unpack the struct
+    df = df.select(df[lexeme_col_name],
+                   F.col(cluster_info_struct_name + "." + cluster_size_col_name).alias(cluster_size_col_name),
+                   F.col(cluster_info_struct_name + "." + raw_embedding_col_name).alias(raw_embedding_col_name),
+                   df[lexeme_count_col_name])
+
+    # Add a random sense ID
     df = df.select(df[nlpio.lexeme_col_name],
                    F.row_number().over(
-                       Window.partitionBy(df[lexeme_col_name]).orderBy(F.rand(1))).alias(sense_id_col_name),
+                       Window.partitionBy(df[lexeme_col_name]).orderBy(F.rand())).alias(sense_id_col_name),
                    df[cluster_center_col_name],
                    df[lexeme_count_col_name])
 
