@@ -4,7 +4,7 @@ Modify clinicallanguageresource.dictprep.site_modify appropriately to your clust
 clinicallanguageresource.dictprep.site_modify_template provides a baseline implementation on the OHDSI CDM's
 note_nlp table.
 
-Output will be in form of concept_code, lexeme, base64-encoded ndarray of the embedding
+Output will be in form of note_id, concept_code, lexeme, base64-encoded ndarray of the embedding
 
 Required spark parameter: spark.clr.embedding_output_dir - where to write resulting embeddings as a CSV
 """

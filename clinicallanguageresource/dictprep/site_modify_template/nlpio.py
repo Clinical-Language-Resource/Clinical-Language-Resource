@@ -39,7 +39,7 @@ def remove_all_subsumed(df: DataFrame) -> DataFrame:
     handles this already
 
     :param df: The NLP Artifact table
-    :return: The filtered dataframe with all subsumed removed with columns concept_code, sentence, lexeme
+    :return: The filtered dataframe with all subsumed removed with columns note_id, concept_code, sentence, lexeme
     """
     df = df.groupBy(
         df[note_id_col_name],
@@ -55,8 +55,9 @@ def remove_all_subsumed(df: DataFrame) -> DataFrame:
     df = df.select(df[note_id_col_name], df[containing_sentence_col_name],
                    F.explode(remove_subsumed_udf(df[containing_sentence_col_name],
                                                  df[lexeme_index_column_name])).alias(lexeme_extract_struct_name))
-    # Keep only concept_code, sentence, lexeme, and deduplicate
-    df = df.select(F.col(lexeme_extract_struct_name + "." + concept_code_col_name).alias(concept_code_col_name),
+    # Keep only note_id, concept_code, sentence, lexeme, and deduplicate
+    df = df.select(df[note_id_col_name],
+                   F.col(lexeme_extract_struct_name + "." + concept_code_col_name).alias(concept_code_col_name),
                    df[containing_sentence_col_name],
                    F.col(lexeme_extract_struct_name + "." + lexeme_col_name).alias(lexeme_col_name)).distinct()
     return df
