@@ -51,9 +51,8 @@ def encode_ndarray(embedding: np.ndarray) -> str:
 
 
 def embedding_valid(embedding_base64: str) -> bool:
-    # Embeddings will occasionally output a "zero'd" vector with invalid values, presumably due to an overflow(?)
+    # Embeddings will occasionally output a NaN vector with invalid values, presumably due to an overflow(?)
     # Not sure why this happens but regardless we want to filter this out TODO investigate this
-    # Will also occasionally output invalid NaN and/or infinite values
     npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding_base64), dtype="float32")
     if np.any(np.isnan(npemb)) or not np.all(np.isfinite(npemb)):
         return False

@@ -24,14 +24,10 @@ import pyspark.sql.functions as F
 
 
 def embedding_valid(embedding_base64: str) -> bool:
-    # Embeddings will occasionally output a "zero'd" vector with invalid values, presumably due to an overflow(?)
+    # Embeddings will occasionally output a NaN vector with invalid values, presumably due to an overflow(?)
     # Not sure why this happens but regardless we want to filter this out TODO investigate this
-    # Will also occasionally output invalid NaN and/or infinite values
-    npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding_base64))
+    npemb: np.ndarray = np.frombuffer(base64.b64decode(embedding_base64), dtype="float32")
     if np.any(np.isnan(npemb)) or not np.all(np.isfinite(npemb)):
-        print("Skipping invalid embedding for NaN or not finite: ", embedding_base64)
-        return False
-    if embedding_base64.startswith('AADA/wAAwP8AAMD'):
         return False
     return True
 
@@ -40,8 +36,8 @@ def euclid_distance(embedding1_base64: str, embedding2_base64: str) -> float:
     """
     :return: The euclidean distance between two vectors
     """
-    emb1 = np.frombuffer(base64.b64decode(embedding1_base64))
-    emb2 = np.frombuffer(base64.b64decode(embedding2_base64))
+    emb1 = np.frombuffer(base64.b64decode(embedding1_base64), dtype="float32")
+    emb2 = np.frombuffer(base64.b64decode(embedding2_base64), dtype="float32")
     return np.linalg.norm(emb1 - emb2)
 
 
