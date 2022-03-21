@@ -111,7 +111,7 @@ def find_cluster_centers(embeddings_base64: List[str]) -> List[Tuple[int, str]]:
 def find_cluster_centers_schema() -> DataType:
     return ArrayType(StructType([
         StructField(cluster_size_col_name, IntegerType(), False),
-        StructField(raw_embedding_col_name, StringType(), False)
+        StructField(cluster_center_col_name, StringType(), False)
     ]))
 
 
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     # And unpack the struct
     df = df.select(df[lexeme_col_name],
                    F.col(cluster_info_struct_name + "." + cluster_size_col_name).alias(cluster_size_col_name),
-                   F.col(cluster_info_struct_name + "." + raw_embedding_col_name).alias(raw_embedding_col_name),
+                   F.col(cluster_info_struct_name + "." + cluster_center_col_name).alias(cluster_center_col_name),
                    df[lexeme_count_col_name])
 
     # Add a random sense ID
@@ -169,6 +169,7 @@ if __name__ == '__main__':
                    F.row_number().over(
                        Window.partitionBy(df[lexeme_col_name]).orderBy(F.rand())).alias(sense_id_col_name),
                    df[cluster_center_col_name],
+                   df[cluster_size_col_name],
                    df[lexeme_count_col_name])
 
     df.write.csv(path=writedir, mode="overwrite", header=True)
