@@ -80,7 +80,8 @@ if __name__ == '__main__':
     df: DataFrame = nlpio.get_nlp_artifact_table(spark)
     df = nlpio.get_eligible_nlp_artifacts(df)
     df = nlpio.remove_all_subsumed(df)
-    df = df.select(df[concept_code_col_name],
+    df = df.select(df[note_id_col_name],
+                   df[concept_code_col_name],
                    F.lower(df[containing_sentence_col_name]).alias(containing_sentence_col_name),
                    F.lower(df[lexeme_col_name]).alias(lexeme_col_name)).distinct()
 
@@ -93,7 +94,8 @@ if __name__ == '__main__':
 
     # Run embedding generation
     embeddings_udf = F.udf(lambda lex, sent: generate_embedding(lex, sent), ArrayType(StringType()))
-    df = df.select(df[concept_code_col_name],
+    df = df.select(df[note_id_col_name],
+                   df[concept_code_col_name],
                    df[lexeme_col_name],
                    F.explode(embeddings_udf(df[lexeme_col_name],
                                             df[containing_sentence_col_name])).alias(raw_embedding_col_name))
