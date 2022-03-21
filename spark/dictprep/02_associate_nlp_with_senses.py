@@ -10,7 +10,7 @@ Output format: note id, concept id, lexeme, sense id
 Required spark parameters:
     1) spark.clr.embedding_input_dir - where embeddings were written in prior step
     2) spark.clr.cluster_center_input_dir - cluster center output from 01_find_embedding_cluster_centers
-    3) spark.clr.disambiguation_contexts_output_dir - Where to write results
+    3) spark.clr.sense_associations_output_dir - Where to write results
 """
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import BooleanType, FloatType
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     spark: SparkSession = sparkutils.setup_spark_session("CLR-Find-Disambiguation-Contexts")
     embeddings_input_dir = spark.sparkContext.getConf().get('spark.clr.embedding_input_dir')
     cluster_center_input_dir = spark.sparkContext.getConf().get('spark.clr.cluster_center_input_dir')
-    writedir = spark.sparkContext.getConf().get('spark.clr.disambiguation_contexts_output_dir')
+    writedir = spark.sparkContext.getConf().get('spark.clr.sense_associations_output_dir')
 
     # Read in DataFrames
     embeddings_df: DataFrame = spark.read.format("csv").option("header", True).load(embeddings_input_dir)
