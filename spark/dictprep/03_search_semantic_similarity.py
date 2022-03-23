@@ -22,6 +22,7 @@ documents with both (lexeme, sense) tuples x and y
 Required spark parameters:
     1) spark.clr.sense_associations_input_dir - Sense associations from step 2.
     2) spark.clr.semsim_output_dir - Where to write semantic similarity search results
+    3) spark.sql.crossJoin.enabled - must be set to true as we use cross-joins to create x,y pairs
 
 If 02_associate_nlp_with_senses is not ran, do not supply the spark.clr.sense_associations_input_dir parameter.
 Instead, the steps from "Setup NLP Dataset" in 00_generate_embeddings_from_nlp_artifacts will be done instead
