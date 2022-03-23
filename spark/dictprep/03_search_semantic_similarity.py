@@ -75,7 +75,7 @@ if __name__ == "__main__":
                        F.lower(df[lexeme_col_name]).alias(lexeme_col_name)).distinct()
         df = df.select(df[note_id_col_name],
                        df[lexeme_col_name],
-                       F.lit(-1).alias(sense_id_col_name))
+                       F.lit(-1).alias(sense_id_col_name)).persist()
 
     # Construct background dataframe
     backgroundDf: DataFrame = df.withColumn(lexeme_count_col_name, F.lit(1)) \
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     doc_count: float = float(int(backgroundDf.agg(F.sum(backgroundDf[lexeme_count_col_name])).collect()[0][0]))
 
     # Generate a dataframe of individual tokens ((x, y) candidates) for comparison
-    tokens_df = df.select(df[lexeme_col_name], df[sense_id_col_name]).distinct()
+    tokens_df = df.select(df[lexeme_col_name], df[sense_id_col_name]).distinct().persist()
     tokens_df_2 = tokens_df
 
     # And now do a cross join. We don't cross-join on the same lexeme even if sense different under assumption that
