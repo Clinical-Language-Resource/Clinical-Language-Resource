@@ -85,20 +85,12 @@ if __name__ == "__main__":
     # Parameter for NGD/GND
     doc_count: float = float(int(backgroundDf.agg(F.sum(backgroundDf[lexeme_count_col_name])).collect()[0][0]))
 
-    # Generate a dataframe of individual tokens ((x, y) candidates) for comparison
-    tokens_df = df.select(df[lexeme_col_name], df[sense_id_col_name]).distinct().persist()
-    tokens_df_2 = tokens_df
-
-    # And now do a cross join. We don't cross-join on the same lexeme even if sense different under assumption that
+    # Code section below extensively uses cross-joins to generate permutations for testing
+    # We don't cross-join on the same lexeme even if sense different under assumption that
     # the senses are mutually exclusive. Even if they are not, this would serve to magnify actual items that can be
     # used to construct sense definition, rather than outputting the fact that senses might be overlapping.
     # Even though this is less efficient here/does duplicate work, also compute the reverse equivalent x,y for
     # efficiency later on down the pipeline
-    sense_def_calc_df = tokens_df.join(
-        tokens_df_2,
-        tokens_df[lexeme_col_name] != tokens_df_2[lexeme_col_name]
-    ).select(tokens_df[lexeme_col_name], tokens_df[sense_id_col_name],
-             tokens_df_2[lexeme_col_name], tokens_df_2[sense_id_col_name])
 
     # Get document set for all (lexeme, sense) tokens
     term_documents_df = df.groupBy(
@@ -106,7 +98,7 @@ if __name__ == "__main__":
         df[sense_id_col_name]
     ).agg(
         F.collect_set(df[note_id_col_name]).alias(document_set_col_name)
-    )
+    ).persist()
 
     # f(x)
     term_freq = term_documents_df.select(
