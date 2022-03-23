@@ -79,7 +79,7 @@ if __name__ == "__main__":
     # Construct background dataframe
     backgroundDf: DataFrame = df.withColumn(lexeme_count_col_name, F.lit(1)) \
         .groupBy(df[lexeme_col_name]) \
-        .agg(F.sum(df[lexeme_count_col_name]).alias(lexeme_count_col_name))
+        .agg(F.sum(F.col(lexeme_count_col_name)).alias(lexeme_count_col_name))
 
     # Parameter for NGD/GND
     doc_count: float = float(int(backgroundDf.agg(F.sum(backgroundDf[lexeme_count_col_name])).collect()[0][0]))
