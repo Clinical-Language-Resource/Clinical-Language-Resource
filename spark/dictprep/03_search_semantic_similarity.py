@@ -85,49 +85,81 @@ if __name__ == "__main__":
     # Parameter for NGD/GND
     doc_count: float = float(int(backgroundDf.agg(F.sum(backgroundDf[lexeme_count_col_name])).collect()[0][0]))
 
-    # Code section below extensively uses cross-joins to generate permutations for testing
-    # We don't cross-join on the same lexeme even if sense different under assumption that
-    # the senses are mutually exclusive. Even if they are not, this would serve to magnify actual items that can be
-    # used to construct sense definition, rather than outputting the fact that senses might be overlapping.
-    # Even though this is less efficient here/does duplicate work, also compute the reverse equivalent x,y for
-    # efficiency later on down the pipeline
-
     # Get document set for all (lexeme, sense) tokens
-    term_documents_df = df.groupBy(
+    # term_documents_df = df.groupBy(
+    #     df[lexeme_col_name],
+    #     df[sense_id_col_name],
+    # ).agg(
+    #     F.collect_set(df[note_id_col_name]).alias(document_set_col_name)
+    # ).persist()
+    term_documents_df = df.select(
+        df[note_id_col_name],
         df[lexeme_col_name],
         df[sense_id_col_name]
-    ).agg(
-        F.collect_set(df[note_id_col_name]).alias(document_set_col_name)
-    ).persist()
+    ).distinct().persist()
 
     # f(x)
     term_freq = term_documents_df.select(
         term_documents_df[lexeme_col_name],
         term_documents_df[sense_id_col_name],
-        F.size(term_documents_df[document_set_col_name]).alias(term_freq_col_name)
-    )
+    ).withColumn(
+        term_freq_col_name, F.lit(1)
+    ).groupBy(
+        term_documents_df[lexeme_col_name],
+        term_documents_df[sense_id_col_name],
+    ).agg(F.sum(F.col(term_freq_col_name)).alias(term_freq_col_name)).persist()
 
     # f(x, y)
     f_x_y_udf = F.udf(lambda x, y: num_shared_documents(x, y))
     term_documents_df_2 = term_documents_df
+    # term_freq_combined = term_documents_df.join(
+    #     term_documents_df_2,
+    #     term_documents_df[lexeme_col_name] != term_documents_df_2[lexeme_col_name]
+    # ).select(
+    #     term_documents_df[lexeme_col_name],
+    #     term_documents_df[sense_id_col_name],
+    #     term_documents_df_2[lexeme_col_name].alias(lexeme_col_name_2),
+    #     term_documents_df_2[sense_id_col_name].alias(sense_id_col_name_2),
+    #     f_x_y_udf(term_documents_df[document_set_col_name],
+    #               term_documents_df_2[document_set_col_name]).alias(combined_freq_col_name)
+    # )
+
+    # We don't want to use collect_set as that will potentially cause memory overflows, so do the long way using joins
+    # instead. First, get all rows from cross-join that share note_id_col
     term_freq_combined = term_documents_df.join(
         term_documents_df_2,
-        term_documents_df[lexeme_col_name] != term_documents_df_2[lexeme_col_name]
+        (
+                term_documents_df[lexeme_col_name] != term_documents_df_2[lexeme_col_name]
+        ) & (
+                term_documents_df[note_id_col_name] == term_documents_df_2[note_id_col_name]
+        )
     ).select(
         term_documents_df[lexeme_col_name],
         term_documents_df[sense_id_col_name],
         term_documents_df_2[lexeme_col_name].alias(lexeme_col_name_2),
         term_documents_df_2[sense_id_col_name].alias(sense_id_col_name_2),
-        f_x_y_udf(term_documents_df[document_set_col_name],
-                  term_documents_df_2[document_set_col_name]).alias(combined_freq_col_name)
+        F.lit(1).alias(combined_freq_col_name)
+    )
+
+    # And then reduce to find f(x,y)
+    term_freq_combined = term_freq_combined.groupBy(
+        term_freq_combined[lexeme_col_name],
+        term_freq_combined[sense_id_col_name],
+        term_freq_combined[lexeme_col_name_2],
+        term_freq_combined[sense_id_col_name_2]
+    ).agg(
+        F.sum(term_freq_combined[combined_freq_col_name]).alias(combined_freq_col_name)
     )
 
     # Get all columns required for NGD
     # - First join x
     ngd_df = term_freq_combined.join(
         term_freq,
-        (term_freq_combined[lexeme_col_name] == term_freq[lexeme_col_name]) & (
-                term_freq_combined[sense_id_col_name] == term_freq[sense_id_col_name])
+        (
+                term_freq_combined[lexeme_col_name] == term_freq[lexeme_col_name]
+        ) & (
+                term_freq_combined[sense_id_col_name] == term_freq[sense_id_col_name]
+        )
     ).select(
         term_freq_combined[lexeme_col_name],
         term_freq_combined[sense_id_col_name],
@@ -139,8 +171,11 @@ if __name__ == "__main__":
     # - Now join y
     ngd_df = ngd_df.join(
         term_freq,
-        (ngd_df[lexeme_col_name_2] == term_freq[lexeme_col_name]) & (
-                ngd_df[sense_id_col_name_2] == term_freq[sense_id_col_name])
+        (
+                ngd_df[lexeme_col_name_2] == term_freq[lexeme_col_name]
+        ) & (
+                ngd_df[sense_id_col_name_2] == term_freq[sense_id_col_name]
+        )
     ).select(
         ngd_df[lexeme_col_name],
         ngd_df[sense_id_col_name],
