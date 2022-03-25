@@ -86,12 +86,6 @@ if __name__ == "__main__":
     doc_count: float = float(int(backgroundDf.agg(F.sum(backgroundDf[lexeme_count_col_name])).collect()[0][0]))
 
     # Get document set for all (lexeme, sense) tokens
-    # term_documents_df = df.groupBy(
-    #     df[lexeme_col_name],
-    #     df[sense_id_col_name],
-    # ).agg(
-    #     F.collect_set(df[note_id_col_name]).alias(document_set_col_name)
-    # ).persist()
     term_documents_df = df.select(
         df[note_id_col_name],
         df[lexeme_col_name],
@@ -112,17 +106,6 @@ if __name__ == "__main__":
     # f(x, y)
     f_x_y_udf = F.udf(lambda x, y: num_shared_documents(x, y))
     term_documents_df_2 = term_documents_df
-    # term_freq_combined = term_documents_df.join(
-    #     term_documents_df_2,
-    #     term_documents_df[lexeme_col_name] != term_documents_df_2[lexeme_col_name]
-    # ).select(
-    #     term_documents_df[lexeme_col_name],
-    #     term_documents_df[sense_id_col_name],
-    #     term_documents_df_2[lexeme_col_name].alias(lexeme_col_name_2),
-    #     term_documents_df_2[sense_id_col_name].alias(sense_id_col_name_2),
-    #     f_x_y_udf(term_documents_df[document_set_col_name],
-    #               term_documents_df_2[document_set_col_name]).alias(combined_freq_col_name)
-    # )
 
     # We don't want to use collect_set as that will potentially cause memory overflows, so do the long way using joins
     # instead. First, get all rows from cross-join that share note_id_col
@@ -198,7 +181,7 @@ if __name__ == "__main__":
             ngd_df[fy_col_name],
             ngd_df[fxy_col_name],
             F.lit(doc_count)
-        )
+        ).alias(ngd_col_name)
     )
 
     ngd_df.write.csv(path=writedir, mode="overwrite", header=True)
