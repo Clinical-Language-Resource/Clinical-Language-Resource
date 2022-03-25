@@ -94,11 +94,14 @@ if __name__ == '__main__':
 
     # Run embedding generation
     embeddings_udf = F.udf(lambda lex, sent: generate_embedding(lex, sent), ArrayType(StringType()))
+
+    # De-LVG-ize lexemes if necessary
+    delvg_udf = F.udf(lambda lexeme, concept_code: nlpio.de_lvgize_lexeme(lexeme, concept_code), StringType())
     df = df.select(df[note_id_col_name],
                    df[concept_code_col_name],
-                   df[lexeme_col_name],
+                   delvg_udf(df[lexeme_col_name], df[concept_code_col_name]).alias(lexeme_count_col_name),
                    F.explode(embeddings_udf(df[lexeme_col_name],
                                             df[containing_sentence_col_name])).alias(raw_embedding_col_name))
 
     # Save results as CSV
-    df.write.csv(path=save_embeddings_dir, mode="overwrite", header=True)
+    df.write.csv(path=save_embeddings_dir, mode="append", header=True)
