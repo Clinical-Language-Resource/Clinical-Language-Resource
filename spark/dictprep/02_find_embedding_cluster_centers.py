@@ -10,7 +10,7 @@ General Procedure for each concept code:
 2) Use KMeans to determine cluster centers.
 3) If k == 1, then use the arithmetic mean of the cluster as the centerpoint
 
-Requires prior completion of 00_generate_embeddings_from_nlp_artifacts.py
+Requires prior completion of 01_generate_embeddings_from_nlp_artifacts.py
 
 
 Required spark parameters:

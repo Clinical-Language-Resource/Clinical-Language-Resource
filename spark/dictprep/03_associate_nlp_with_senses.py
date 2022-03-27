@@ -2,10 +2,12 @@
 Optional: Associates NLP outputs with cluster sense ids at a per-document level. Useful later for WSD-related tasks and
 sense definitions in the dictionary, but is not critical to core functionality
 
-Requires completion of 01_find_embedding_cluster_centers.py
+Association is done via cosine similarity to the individual vector to the various cluster centers of corresponding
+(lexeme, sense) pairs
+
+Requires completion of 02_find_embedding_cluster_centers.py
 
 Output format: note id, concept id, lexeme, sense id
-
 
 Required spark parameters:
     1) spark.clr.embedding_input_dir - where embeddings were written in prior step
@@ -32,13 +34,13 @@ def embedding_valid(embedding_base64: str) -> bool:
     return True
 
 
-def euclid_distance(embedding1_base64: str, embedding2_base64: str) -> float:
+def cos_sim(embedding1_base64: str, embedding2_base64: str) -> float:
     """
-    :return: The euclidean distance between two vectors
+    :return: The cosine similarity between two vectors
     """
     emb1 = np.frombuffer(base64.b64decode(embedding1_base64), dtype="float32")
     emb2 = np.frombuffer(base64.b64decode(embedding2_base64), dtype="float32")
-    return np.linalg.norm(emb1 - emb2)
+    return np.dot(emb1, emb2)/(np.linalg.norm(emb1) * np.linalg.norm(emb2))
 
 
 if __name__ == "__main__":
@@ -61,7 +63,7 @@ if __name__ == "__main__":
                                        embeddings_df[lexeme_col_name] == cluster_center_df[lexeme_col_name])
 
     # Compare pairwise euclidean distance to generate a score
-    euclid_distance_udf = F.udf(lambda emb1, emb2: euclid_distance(emb1, emb2), FloatType())
+    euclid_distance_udf = F.udf(lambda emb1, emb2: cos_sim(emb1, emb2), FloatType())
     df = df.select(
         embeddings_df[note_id_col_name],
         embeddings_df[lexeme_col_name],

@@ -3,7 +3,7 @@ Determines semantic similarity between lexemes in the NLP dataset, thus creating
 for use in NLP ruleset construction, etc.
 
 In order to factor in potential sense disambiguations into semantic similarity computations, particularly to account
-for lexemes potentially being associated with multiple senses, completion of 02_associate_nlp_with_senses.py is
+for lexemes potentially being associated with multiple senses, completion of 03_associate_nlp_with_senses.py is
 recommended, but not required. If this is not done, all lexeme occurrences will be assumed to be from a single sense
 with ID -1, which will result in the semantic similarity lookup being still generally-usable, but results from minority
 occurrence senses will be drowned out for a given lexeme
