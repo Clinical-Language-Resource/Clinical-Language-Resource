@@ -4,9 +4,13 @@ Modify clinicallanguageresource.dictprep.site_modify appropriately to your clust
 clinicallanguageresource.dictprep.site_modify_template provides a baseline implementation on the OHDSI CDM's
 note_nlp table.
 
+Requires prior completion of 00_identify_exclusions_via_relative_tf.py
+
 Output will be in form of note_id, concept_code, lexeme, base64-encoded ndarray of the embedding
 
-Required spark parameter: spark.clr.embedding_output_dir - where to write resulting embeddings as a CSV
+Required spark parameters:
+1) spark.clr.embedding_output_dir - where to write resulting embeddings as a CSV
+2) spark.clr.filter_input_dir - Where output from 00_identify_exclusions_via_relative_tf.py  was stored
 """
 
 import base64
@@ -75,15 +79,24 @@ if __name__ == '__main__':
     # Setup Spark
     spark: SparkSession = sparkutils.setup_spark_session("CLR-Generate-Embeddings")
     save_embeddings_dir = spark.sparkContext.getConf().get('spark.clr.embedding_output_dir')
+    filter_input_dir = spark.sparkContext.getConf().get('spark.clr.filter_input_dir')
 
     # Setup NLP Dataset
+    filter_df: DataFrame = spark.read.format("csv").option("header", True).load(filter_input_dir)
     df: DataFrame = nlpio.get_nlp_artifact_table(spark)
     df = nlpio.get_eligible_nlp_artifacts(df)
     df = nlpio.remove_all_subsumed(df)
-    df = df.select(df[note_id_col_name],
-                   df[concept_code_col_name],
-                   F.lower(df[containing_sentence_col_name]).alias(containing_sentence_col_name),
-                   F.lower(df[lexeme_col_name]).alias(lexeme_col_name)).distinct()
+
+    # Filter out too-high-frequency base lexemes on assumption that it is not a legitimate match
+    normalization_udf = F.udf(lambda lexeme, concept_code: nlpio.normalize_lexeme_concept(lexeme, concept_code),
+                              StringType())
+    df = df.join(
+        filter_df,
+        normalization_udf(df[lexeme_col_name], df[concept_code_col_name]) == filter_df[lexeme_col_name]
+    ).select(df[note_id_col_name],
+             df[concept_code_col_name],
+             F.lower(df[containing_sentence_col_name]).alias(containing_sentence_col_name),
+             F.lower(df[lexeme_col_name]).alias(lexeme_col_name)).distinct()
 
     # Setup BERT
     tokenizer: BertTokenizer = AutoTokenizer.from_pretrained("./model/bio_clinbert_model",
@@ -96,10 +109,9 @@ if __name__ == '__main__':
     embeddings_udf = F.udf(lambda lex, sent: generate_embedding(lex, sent), ArrayType(StringType()))
 
     # De-LVG-ize lexemes if necessary
-    delvg_udf = F.udf(lambda lexeme, concept_code: nlpio.de_lvgize_lexeme(lexeme, concept_code), StringType())
     df = df.select(df[note_id_col_name],
                    df[concept_code_col_name],
-                   delvg_udf(df[lexeme_col_name], df[concept_code_col_name]).alias(lexeme_col_name),
+                   normalization_udf(df[lexeme_col_name], df[concept_code_col_name]).alias(lexeme_col_name),
                    F.explode(embeddings_udf(df[lexeme_col_name],
                                             df[containing_sentence_col_name])).alias(raw_embedding_col_name))
 

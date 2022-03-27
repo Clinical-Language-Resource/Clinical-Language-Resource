@@ -10,6 +10,8 @@ concept_id_col_name = "note_nlp_concept_id"
 offset_col_name = "offset"
 
 # Column names used internally. Only need to change this if name conflicts with an existing column in your import
+lexeme_count_avg = "lexeme_avg"
+lexeme_count_stddev = "lexeme_stddev"
 concept_code_col_name = "concept"
 lexeme_col_name = "lexeme"
 begin_col_name = "begin"

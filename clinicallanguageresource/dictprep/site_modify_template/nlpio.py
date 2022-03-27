@@ -11,10 +11,10 @@ from clinicallanguageresource.dictprep.site_modify.column_names import *
 from clinicallanguageresource.dictprep.util.nlpannotations import flatten_overlaps, flatten_overlaps_schema
 
 
-def de_lvgize_lexeme(lexeme: str, concept_code: str) -> str:
+def normalize_lexeme_concept(lexeme: str, concept_code: str) -> str:
     """
-    Normalizes lexeme/matched text. Use if your match text is lvg'ized and map back to original form depending on how
-    your dictionary match was generated.
+    Normalizes lexeme/matched text. Use, as an example, if your match text is lvg'ized to map back to base form
+    depending on how your dictionary match was generated.
 
     Default operation is no-op
     """
