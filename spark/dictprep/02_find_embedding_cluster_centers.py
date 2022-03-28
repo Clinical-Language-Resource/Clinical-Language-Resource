@@ -87,6 +87,7 @@ def find_cluster_centers(embeddings_base64: List[str]) -> List[Tuple[int, str]]:
             idx: int = 0
             for center in km.cluster_centers_:
                 cluster_size = num_samples_in_cluster(idx, km.labels_)
+                idx += 1
                 if cluster_size >= cluster_size_limit:
                     ret.append((cluster_size, encode_ndarray(center)))
             return ret
