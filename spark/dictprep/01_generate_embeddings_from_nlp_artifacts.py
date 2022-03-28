@@ -65,10 +65,8 @@ def generate_embedding(lexeme: str, sentence: str):
             states = output.hidden_states
             output = torch.stack([states[i] for i in layers]).sum(0).squeeze()
             word_tokens_output = output[encoded_token_idxs].mean(dim=0)
-
-            # Embeddings will occasionally output a "zero'd" vector with invalid values, presumably due to overflow(?)
-            # Not sure why this happens but regardless we want to filter this out TODO investigate this
             npemb: np.ndarray = np.array(word_tokens_output)
+            # Should not happen, but just in case
             if np.any(np.isnan(npemb)) or not np.all(np.isfinite(npemb)):
                 continue
             encoded = base64.b64encode(npemb.tobytes()).decode('ascii');
