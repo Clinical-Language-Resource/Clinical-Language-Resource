@@ -72,10 +72,7 @@ def generate_embedding(lexeme: str, sentence: str):
             if np.any(np.isnan(npemb)) or not np.all(np.isfinite(npemb)):
                 continue
             encoded = base64.b64encode(npemb.tobytes()).decode('ascii');
-            if not encoded.startswith('AADA/wAAwP8AAMD'):
-                # Convert to base64 for ease of export (and can always convert back for mild performance cost anyways)
-                # Does cost more in storage space though
-                ret_vectors.append(encoded)
+            ret_vectors.append(encoded)
         except Exception as e:
             print(e)
             continue
