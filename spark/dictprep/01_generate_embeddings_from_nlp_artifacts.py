@@ -43,15 +43,21 @@ def generate_embedding(lexeme: str, sentence: str):
     # Generate a separate embedding for each instance
     for lexeme_offset in lexeme_offsets:
         # Tokenize to BERT format and identify indexes/subwords corresponding to original word of interest
-        # We can't do a word-by-word lookup due to multi-word lexemes and the sequence being meaningful, so instead
-        # find whitespace offset position and add based on lexeme token length
-        lexeme_token_length = len(lexeme.split(" "))
-        token_idxes = []
-        for i in range(0, lexeme_token_length):
-            token_idxes.append(i + lexeme_offset)
+        lexeme_end = lexeme_offset + len(lexeme)
+
         try:
             encoded = tokenizer.encode_plus(sentence, return_tensors="pt")
-            encoded_token_idxs = np.where(np.isin(np.array(encoded.word_ids()), token_idxes))
+            encoded_token_idxs = []
+            bert_tokenization_offsets = encoded.encodings[0].offsets
+            for i in range(0, len(bert_tokenization_offsets)):
+                encoded_token_pos = bert_tokenization_offsets[i]
+                start = encoded_token_pos[0]
+                end = encoded_token_pos[1]
+                if start == 0 and end == 0:
+                    continue  # [CLS], [SEP], etc.
+                # Collision check
+                if (start <= lexeme_offset and end > lexeme_offset) or (start >= lexeme_offset and start < lexeme_end):
+                    encoded_token_idxs.append(i)
             # Now get the actual embeddings from hidden layer - average subword embeddings to generate representation
             # for lexeme as a whole
             with torch.no_grad():
@@ -70,7 +76,8 @@ def generate_embedding(lexeme: str, sentence: str):
                 # Convert to base64 for ease of export (and can always convert back for mild performance cost anyways)
                 # Does cost more in storage space though
                 ret_vectors.append(encoded)
-        except Exception:
+        except Exception as e:
+            print(e)
             continue
     return ret_vectors
 
