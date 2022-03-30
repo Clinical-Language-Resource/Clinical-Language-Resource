@@ -17,6 +17,7 @@ Required spark parameters:
 from numpy import ndarray
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import BooleanType, FloatType
+from sklearn.metrics.pairwise import cosine_similarity
 
 from clinicallanguageresource.dictprep.site_modify import sparkutils
 from clinicallanguageresource.dictprep.site_modify.column_names import *
@@ -79,7 +80,7 @@ if __name__ == "__main__":
 
     # And select the minimum
     min_euclid_df = df.groupBy(df[note_id_col_name],
-                               df[lexeme_col_name]).agg(F.min(df[cos_score_col_name]).alias(cos_score_col_name))
+                               df[lexeme_col_name]).agg(F.max(df[cos_score_col_name]).alias(cos_score_col_name))
 
     df = df.join(min_euclid_df,
                  (df[note_id_col_name] == min_euclid_df[note_id_col_name]) &
