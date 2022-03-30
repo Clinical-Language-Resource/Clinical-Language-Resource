@@ -21,6 +21,13 @@ def normalize_lexeme_concept(lexeme: str, concept_code: str) -> str:
     return lexeme
 
 
+def normalize_concept_grouping(lexeme: str, concept_code: str) -> str:
+    """
+    Returns appropriate concept/semantic groupings from lexeme/concept_code input. Used for naive sense disambiguation
+    """
+    return concept_code
+
+
 def get_nlp_artifact_table(spark: SparkSession) -> DataFrame:
     """
     Retrieves a nlp artifact table from hive
