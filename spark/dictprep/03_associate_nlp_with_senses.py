@@ -63,23 +63,23 @@ if __name__ == "__main__":
                                        embeddings_df[lexeme_col_name] == cluster_center_df[lexeme_col_name])
 
     # Compare pairwise euclidean distance to generate a score
-    euclid_distance_udf = F.udf(lambda emb1, emb2: cos_sim(emb1, emb2), FloatType())
+    cos_distance_udf = F.udf(lambda emb1, emb2: cos_sim(emb1, emb2), FloatType())
     df = df.select(
         embeddings_df[note_id_col_name],
         embeddings_df[lexeme_col_name],
         cluster_center_df[sense_id_col_name],
-        euclid_distance_udf(embeddings_df[raw_embedding_col_name],
-                            cluster_center_df[cluster_center_col_name]).alias(euclid_score_col_name)
+        cos_distance_udf(embeddings_df[raw_embedding_col_name],
+                         cluster_center_df[cluster_center_col_name]).alias(cos_score_col_name)
     )
 
     # And select the minimum
     min_euclid_df = df.groupBy(df[note_id_col_name],
-                               df[lexeme_col_name]).agg(F.min(df[euclid_score_col_name])).alias(euclid_score_col_name)
+                               df[lexeme_col_name]).agg(F.min(df[cos_score_col_name]).alias(cos_score_col_name))
 
     df = df.join(min_euclid_df,
                  (df[note_id_col_name] == min_euclid_df[note_id_col_name]) &
                  (df[lexeme_col_name] == min_euclid_df[lexeme_col_name]) &
-                 (df[euclid_score_col_name] == min_euclid_df[euclid_score_col_name])
+                 (df[cos_score_col_name] == min_euclid_df[cos_score_col_name])
                  ).select(df[note_id_col_name],
                           df[lexeme_col_name],
                           df[sense_id_col_name])
