@@ -14,6 +14,7 @@ Required spark parameters:
     2) spark.clr.cluster_center_input_dir - cluster center output from 02_disambiguate_embedding_clusters.py
     3) spark.clr.sense_associations_output_dir - Where to write results
 """
+from numpy import ndarray
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import BooleanType, FloatType
 
@@ -38,8 +39,12 @@ def cos_sim(embedding1_base64: str, embedding2_base64: str) -> float:
     """
     :return: The cosine similarity between two vectors
     """
-    emb1 = np.frombuffer(base64.b64decode(embedding1_base64), dtype="float32")
-    emb2 = np.frombuffer(base64.b64decode(embedding2_base64), dtype="float32")
+    emb1: ndarray = np.frombuffer(base64.b64decode(embedding1_base64), dtype="float32")
+    emb2: ndarray = np.frombuffer(base64.b64decode(embedding2_base64), dtype="float32")
+    if emb2.shape != emb1.shape:
+        # KMeans clustering step can output both float64 or float32 depending on circumstances, so
+        # switch to the other instead here TODO more elgant solution involving properly using numpy's serialization
+        emb2 = np.frombuffer(base64.b64decode(embedding2_base64), dtype="float64")
     return np.dot(emb1, emb2)/(np.linalg.norm(emb1) * np.linalg.norm(emb2))
 
 
