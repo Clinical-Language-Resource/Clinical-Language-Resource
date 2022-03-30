@@ -48,7 +48,7 @@ def cos_sim(embedding1_base64: str, embedding2_base64: str) -> float:
         emb2 = np.frombuffer(base64.b64decode(embedding2_base64), dtype="float64")
         if emb2.shape != emb1.shape:
             raise Exception("\nEmb1:", embedding1_base64, "\nEmb2:", embedding2_base64)
-    return np.dot(emb1, emb2)/(np.linalg.norm(emb1) * np.linalg.norm(emb2)).item()
+    return (np.dot(emb1, emb2)/(np.linalg.norm(emb1) * np.linalg.norm(emb2))).item()
 
 
 if __name__ == "__main__":
