@@ -14,8 +14,10 @@ Required spark parameters:
     2) spark.clr.cluster_center_input_dir - cluster center output from 02_disambiguate_embedding_clusters.py
     3) spark.clr.sense_associations_output_dir - Where to write results
 """
+from numpy import ndarray
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import BooleanType, FloatType
+from sklearn.metrics.pairwise import cosine_similarity
 
 from clinicallanguageresource.dictprep.site_modify import sparkutils
 from clinicallanguageresource.dictprep.site_modify.column_names import *
@@ -38,9 +40,15 @@ def cos_sim(embedding1_base64: str, embedding2_base64: str) -> float:
     """
     :return: The cosine similarity between two vectors
     """
-    emb1 = np.frombuffer(base64.b64decode(embedding1_base64), dtype="float32")
-    emb2 = np.frombuffer(base64.b64decode(embedding2_base64), dtype="float32")
-    return np.dot(emb1, emb2)/(np.linalg.norm(emb1) * np.linalg.norm(emb2))
+    emb1: ndarray = np.frombuffer(base64.b64decode(embedding1_base64), dtype="float32")
+    emb2: ndarray = np.frombuffer(base64.b64decode(embedding2_base64), dtype="float32")
+    if emb2.shape != emb1.shape:
+        # KMeans clustering step can output both float64 or float32 depending on circumstances, so
+        # switch to the other instead here TODO more elgant solution involving properly using numpy's serialization
+        emb2 = np.frombuffer(base64.b64decode(embedding2_base64), dtype="float64")
+        if emb2.shape != emb1.shape:
+            raise Exception("\nEmb1:", embedding1_base64, "\nEmb2:", embedding2_base64)
+    return np.dot(emb1, emb2)/(np.linalg.norm(emb1) * np.linalg.norm(emb2)).item()
 
 
 if __name__ == "__main__":
@@ -63,23 +71,23 @@ if __name__ == "__main__":
                                        embeddings_df[lexeme_col_name] == cluster_center_df[lexeme_col_name])
 
     # Compare pairwise euclidean distance to generate a score
-    euclid_distance_udf = F.udf(lambda emb1, emb2: cos_sim(emb1, emb2), FloatType())
+    cos_distance_udf = F.udf(lambda emb1, emb2: cos_sim(emb1, emb2), FloatType())
     df = df.select(
         embeddings_df[note_id_col_name],
         embeddings_df[lexeme_col_name],
         cluster_center_df[sense_id_col_name],
-        euclid_distance_udf(embeddings_df[raw_embedding_col_name],
-                            cluster_center_df[cluster_center_col_name]).alias(euclid_score_col_name)
+        cos_distance_udf(embeddings_df[raw_embedding_col_name],
+                         cluster_center_df[cluster_center_col_name]).alias(cos_score_col_name)
     )
 
     # And select the minimum
     min_euclid_df = df.groupBy(df[note_id_col_name],
-                               df[lexeme_col_name]).agg(F.min(df[euclid_score_col_name])).alias(euclid_score_col_name)
+                               df[lexeme_col_name]).agg(F.max(df[cos_score_col_name]).alias(cos_score_col_name))
 
     df = df.join(min_euclid_df,
                  (df[note_id_col_name] == min_euclid_df[note_id_col_name]) &
                  (df[lexeme_col_name] == min_euclid_df[lexeme_col_name]) &
-                 (df[euclid_score_col_name] == min_euclid_df[euclid_score_col_name])
+                 (df[cos_score_col_name] == min_euclid_df[cos_score_col_name])
                  ).select(df[note_id_col_name],
                           df[lexeme_col_name],
                           df[sense_id_col_name])

@@ -99,7 +99,6 @@ if __name__ == "__main__":
     # Setup Spark
     spark: SparkSession = sparkutils.setup_spark_session("CLR-Find-Embedding-Centers")
     embeddings_input_dir = spark.sparkContext.getConf().get('spark.clr.embedding_input_dir')
-    max_wsd_clusters = int(spark.sparkContext.getConf().get('spark.clr.max_wsd_clusters'))
     min_wsd_freq = int(spark.sparkContext.getConf().get("spark.clr.min_wsd_freq"))
     tl_filter = int(spark.sparkContext.getConf().get("spark.clr.min_lexeme_length"))
     max_wsd_sample = int(spark.sparkContext.getConf().get("spark.clr.max_wsd_sample"))
