@@ -11,7 +11,7 @@ from clinicallanguageresource.dictprep.site_modify.column_names import *
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    # Setup Spark
+    # Setup args
     input_csv_path = args[0]
     index_output_path = args[1]
     labels_output_path = args[2]
