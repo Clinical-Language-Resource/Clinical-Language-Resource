@@ -187,4 +187,5 @@ if __name__ == "__main__":
                    df[cluster_size_col_name],
                    df[lexeme_count_col_name])
 
-    df.write.csv(path=writedir, mode="overwrite", header=True)
+    # Repartition to 1 partition - it is small enough to fit in memory and annoy indices need to be built locally
+    df.repartition(1).write.csv(path=writedir, mode="overwrite", header=True)
