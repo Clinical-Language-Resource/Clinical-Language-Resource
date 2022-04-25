@@ -10,54 +10,57 @@ from pandas import DataFrame
 
 from clinicallanguageresource.dictprep.site_modify.column_names import *
 
-
-# Type mappings - slightly modified based on cTAKES SemanticUtil. Should not need any modification
-DRUG = [
-    "T109", "T110", "T114", "T115", "T116", "T118", "T119", "T121", "T122", "T123", "T124", "T125", "T126", "T127",
-    "T129", "T130", "T131", "T195", "T196", "T197", "T200", "T203"
-]
-
-DISO = [
-    "T019", "T020", "T037", "T046", "T047", "T048", "T049", "T050", "T190", "T191"
-]
-
-FIND = [
-    "T032", "T033", "T034", "T039", "T040", "T041", "T042", "T043", "T044", "T045", "T051", "T052", "T053", "T054",
-    "T055", "T056", "T057", "T184"
-]
-
-PROC = ["T058", "T059", "T060", "T061", "T062", "T063", "T065"]
-
-ANAT = ["T021", "T022", "T023", "T024", "T025", "T026", "T029", "T030"]
-
+SUPPORTED_TYPES = ["DISO", "PROC", "FIND", "DRUG", "ANAT", "ALL"]
 
 if __name__ == "__main__":
     args = sys.argv[1:]
     # Setup args
     input_csv_path = args[0]
     index_output_dir = args[1]
-    labels_output_dir = args[2]
+    labels_output_path = args[2]
+    cui_mappings_path = args[3]
+    semtype_mappings_path = args[4]
 
-    df: DataFrame = pd.read_csv(input_csv_path, header=0)
-    df[label_col_name] = np.arange(len(df))
+    cluster_centers: DataFrame = pd.read_csv(input_csv_path, header=0)
+    cluster_centers[label_col_name] = np.arange(len(cluster_centers))
+
+    cui_mappings = pd.read_csv(cui_mappings_path, header=None, delimiter='|', names=["CUI"])['CUI']
+    semtypes = pd.read_csv(semtype_mappings_path, header=None, delimiter='|', names=["SEMTYPE"])['SEMTYPE']
 
     # Now build the index
-    index: AnnoyIndex = AnnoyIndex(768, "euclidean")
-    cluster_center_col_idx = df.columns.get_loc(cluster_center_col_name)
-    label_col_idx = df.columns.get_loc(label_col_name)
-    for row in df.iterrows():
+    index_dict = {
+    }
+    for type in SUPPORTED_TYPES:
+        index: AnnoyIndex = AnnoyIndex(768, "euclidean")
+        index_dict[type] = index
+    cluster_center_col_idx = cluster_centers.columns.get_loc(cluster_center_col_name)
+    label_col_idx = cluster_centers.columns.get_loc(label_col_name)
+    for row in cluster_centers.iterrows():
         emb: ndarray = np.frombuffer(base64.b64decode(row[1][cluster_center_col_idx]), dtype="float32")
         if emb.shape[0] != 768:
             emb = np.frombuffer(base64.b64decode(row[1][cluster_center_col_idx]), dtype="float64")
             if emb.shape[0] != 768:
                 raise Exception("Improper dimensionality for input embedding:", emb.shape[0])
-        # noinspection PyTypeChecker
-        index.add_item(row[1][label_col_idx], emb.tolist())
-    index.build(n_trees=1)  # Index is small enough for single tree/no sharding for optimal performance
-    index.save(index_output_path)
+        # Determine where to output
+        semtypes_out = ["ALL"]
+        lexeme = row[1][lexeme_col_name]
+        for cui in cui_mappings.loc[[lexeme.lower()]]:
+            for semtype in semtypes.loc[[cui]]:
+                semtypes_out.append(semtype)
+        # And now output
+        for semtype in set(semtypes_out):
+            if semtype not in SUPPORTED_TYPES:
+                continue
+            # noinspection PyTypeChecker
+            index_dict[semtype].add_item(row[1][label_col_idx], emb.tolist())
+    for semtype in index_dict:
+        index_dict[semtype].build(n_trees=1)  # Index is small enough for single tree/no sharding for performance
+        index_dict[semtype].save(semtype + "_index.ann")
 
-    df = df[[label_col_name, lexeme_col_name, sense_id_col_name, lexeme_count_col_name, cluster_size_col_name]]
-    df.to_csv(labels_output_path, header=True, index=False)
+    cluster_centers = cluster_centers[
+        [label_col_name, lexeme_col_name, sense_id_col_name, lexeme_count_col_name, cluster_size_col_name]
+    ]
+    cluster_centers.to_csv(labels_output_path, header=True, index=False)
 
 
 
