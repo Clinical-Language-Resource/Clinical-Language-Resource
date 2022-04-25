@@ -5,7 +5,7 @@ run to LVG'ize the entries before it can be used as a MedTagger dictionary
 
 Alternative Spark version of the local run
 """
-import sys
+import re
 
 import pyspark.sql.functions as F
 # Configuration Settings
@@ -15,12 +15,8 @@ from pyspark.sql.types import StructType, StructField, StringType, BooleanType
 from clinicallanguageresource.dictprep.site_modify import sparkutils
 
 LANGS = ['ENG']  # Languages to Retain using UMLS LAT codes. Set to empty to disable filter
-VOCABS = [  # Source Vocabularies to Retain using UMLS versioned SAB codes. Set to empty to disable filter
-    'SNOMEDCT_US_2021_09_01',
-    'SNOMEDCT_US_2017_01_31',
-    'SNOMEDCT_US_2018_03_01',
-    'SNOMEDCT_US_2021_03_01',
-    'RXNORM_20AA_210907F'
+VOCABS = [  # Source Vocabularies to Retain using UMLS SAB codes. Set to empty to disable filter
+    # 'SNOMEDCT_US', 'RXNORM', 'MSH'
 ]
 
 # Type mappings - slightly modified based on cTAKES SemanticUtil. Should not need any modification
@@ -100,8 +96,11 @@ if __name__ == "__main__":
     mrsty_df = mrsty_df.withColumn('SEMANTIC_TYPE', map_type_udf(mrsty_df['TUI']))
     mrsty_df = mrsty_df.filter(F.length(mrsty_df['SEMANTIC_TYPE']) > 0)
     # - Now condense so that there is only one row per CUI by merging the semantic_types
-    mrsty_df = mrsty_df.groupby(mrsty_df['CUI'])\
-        .agg(F.collect_set(mrsty_df['SEMANTIC_TYPE']).alias('SEMANTIC_TYPE_SET'))
+    mrsty_df = mrsty_df.groupby(mrsty_df['CUI']).agg(
+        F.collect_set(
+            mrsty_df['SEMANTIC_TYPE']
+        ).alias('SEMANTIC_TYPE_SET')
+    )
     mrsty_df = mrsty_df.withColumn('SEMANTIC_TYPES', F.concat_ws(';', mrsty_df['SEMANTIC_TYPE_SET']))
     mrsty_df = mrsty_df.select('CUI', 'SEMANTIC_TYPES')
     # Join with MRCONSO to get strings, and format to match MedTagger format
@@ -112,7 +111,12 @@ if __name__ == "__main__":
     if len(VOCABS) > 0:
         filter_udf = F.udf(lambda vocab: vocab in VOCABS, BooleanType())
         mrconso_df = mrconso_df.filter(filter_udf(mrconso_df['SAB']))
+    # - Remove retired entries
+    filter_retired_udf = F.udf(lambda lexeme: not re.compile('-RETIRED-$', flags=re.I).match(lexeme), BooleanType())
+    mrconso_df = mrconso_df.filter(filter_retired_udf(mrconso_df['STR']))
     df: DataFrame = mrconso_df.join(mrsty_df, mrconso_df['CUI'] == mrsty_df['CUI'])
     # - Select in MedTagger format
-    df = df.select(mrconso_df['STR'], mrconso_df['SAB'], mrconso_df['CUI'], mrsty_df['SEMANTIC_TYPES']).distinct()
-    df.coalesce(1).write.csv(path=output_path, header=None, sep='|')
+    df = df.select(F.lower(mrconso_df['STR']).alias('STR'), F.lit("OTHER"), mrconso_df['CUI'],
+                   mrsty_df['SEMANTIC_TYPES']).distinct()
+    df.coalesce(1).sort(F.col('STR')).write.csv(path=output_path, header=None, sep='|', mode="overwrite",
+                                                escape="", quote="")

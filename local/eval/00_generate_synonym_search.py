@@ -63,10 +63,14 @@ if __name__ == "__main__":
 
     index: AnnoyIndex = AnnoyIndex(768, 'euclidean')
     index.load('diso_find_index.idx')
+    # df: DataFrame = pd.read_csv('labels_all.csv')
+    #
+    # index: AnnoyIndex = AnnoyIndex(768, 'euclidean')
+    # index.load('index_all.idx')
 
     # Now build the index
-    text = "fell"
-    gensentence = "Patient " + text + " down the stairs"
+    text = "white matter disease"
+    gensentence = "Patient presented today with " + text
     tokenizer: BertTokenizer = AutoTokenizer.from_pretrained("./models/bio_clinbert_model",
                                                              config=AutoConfig.from_pretrained(
                                                                  "./models/bio_clinbert_model"))

@@ -10,14 +10,14 @@ def print_nns_to_string(dict_idx, ann_idx, src_df):
 
 
 if __name__ == "__main__":
-    df: DataFrame = pd.read_csv('diso_find_labels.csv', header=0)
+    df: DataFrame = pd.read_csv('labels_all.csv', header=0)
 
     index: AnnoyIndex = AnnoyIndex(768, 'euclidean')
-    index.load('diso_find_index.idx')
+    index.load('index_all.idx')
 
     df['sem_sim'] = df.apply(lambda row: print_nns_to_string(row['label'], index, df), axis=1)
 
-    df.to_csv('semsim_diso_find_eval.csv', header=True, index=False)
+    df.to_csv('semsim_all.csv', header=True, index=False)
 
 
 

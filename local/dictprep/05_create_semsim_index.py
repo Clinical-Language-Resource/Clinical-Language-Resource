@@ -1,4 +1,5 @@
 import base64
+import os
 import sys
 
 import numpy as np
@@ -9,12 +10,33 @@ from pandas import DataFrame
 
 from clinicallanguageresource.dictprep.site_modify.column_names import *
 
+
+# Type mappings - slightly modified based on cTAKES SemanticUtil. Should not need any modification
+DRUG = [
+    "T109", "T110", "T114", "T115", "T116", "T118", "T119", "T121", "T122", "T123", "T124", "T125", "T126", "T127",
+    "T129", "T130", "T131", "T195", "T196", "T197", "T200", "T203"
+]
+
+DISO = [
+    "T019", "T020", "T037", "T046", "T047", "T048", "T049", "T050", "T190", "T191"
+]
+
+FIND = [
+    "T032", "T033", "T034", "T039", "T040", "T041", "T042", "T043", "T044", "T045", "T051", "T052", "T053", "T054",
+    "T055", "T056", "T057", "T184"
+]
+
+PROC = ["T058", "T059", "T060", "T061", "T062", "T063", "T065"]
+
+ANAT = ["T021", "T022", "T023", "T024", "T025", "T026", "T029", "T030"]
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     # Setup args
     input_csv_path = args[0]
-    index_output_path = args[1]
-    labels_output_path = args[2]
+    index_output_dir = args[1]
+    labels_output_dir = args[2]
 
     df: DataFrame = pd.read_csv(input_csv_path, header=0)
     df[label_col_name] = np.arange(len(df))
