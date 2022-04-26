@@ -1,3 +1,4 @@
+import argparse
 import base64
 import re
 
@@ -59,17 +60,12 @@ def generate_embedding(lexeme: str, sentence: str):
 
 
 if __name__ == "__main__":
-    df: DataFrame = pd.read_csv('diso_find_labels.csv')
-
-    index: AnnoyIndex = AnnoyIndex(768, 'euclidean')
-    index.load('diso_find_index.idx')
-    # df: DataFrame = pd.read_csv('labels_all.csv')
-    #
-    # index: AnnoyIndex = AnnoyIndex(768, 'euclidean')
-    # index.load('index_all.idx')
-
+    df: DataFrame = pd.read_csv('labels_all.csv', index_col=["label"])
+    parser = argparse.ArgumentParser()
+    parser.add_argument('search_term', type=str)
+    args = parser.parse_args()
     # Now build the index
-    text = "white matter disease"
+    text = args.search_term
     gensentence = "Patient presented today with " + text
     tokenizer: BertTokenizer = AutoTokenizer.from_pretrained("./models/bio_clinbert_model",
                                                              config=AutoConfig.from_pretrained(
@@ -84,9 +80,15 @@ if __name__ == "__main__":
         if emb.shape[0] != 768:
             raise Exception("Improper dimensionality for input embedding:", emb.shape[0])
 
-    similar = index.get_nns_by_vector(emb.tolist(), 50)
-
-    for idx in similar:
-        print(df.loc[df['label'] == idx]['lexeme'][idx])
+    for prefix in ["DISO", "PROC", "FIND", "DRUG", "ANAT", "ALL"]:
+        index: AnnoyIndex = AnnoyIndex(768, 'euclidean')
+        index.load(prefix + '_index.ann')
+        similar = index.get_nns_by_vector(emb.tolist(), 20)
+        print("\r\n\r\n")
+        print("Top 20 Similar", prefix, "\r\n")
+        print("==========================\r\n")
+        print('lexeme', 'sense_id', 'lexeme_count', 'cluster_size')
+        for idx in similar:
+            print(df['lexeme'][idx], df['sense_id'][idx], df['lexeme_count'][idx], df['cluster_size'][idx])
 
 
