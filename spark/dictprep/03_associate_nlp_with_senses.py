@@ -5,13 +5,13 @@ sense definitions in the dictionary, but is not critical to core functionality
 Association is done via cosine similarity to the individual vector to the various cluster centers of corresponding
 (lexeme, sense) pairs
 
-Requires completion of 02_disambiguate_embedding_clusters.py
+Requires completion of 02_identify_cluster_centers.py
 
 Output format: note id, concept id, lexeme, sense id
 
 Required spark parameters:
     1) spark.clr.embedding_input_dir - where embeddings were written in prior step
-    2) spark.clr.cluster_center_input_dir - cluster center output from 02_disambiguate_embedding_clusters.py
+    2) spark.clr.cluster_center_input_dir - cluster center output from 02_identify_cluster_centers.py
     3) spark.clr.sense_associations_output_dir - Where to write results
 """
 from numpy import ndarray
