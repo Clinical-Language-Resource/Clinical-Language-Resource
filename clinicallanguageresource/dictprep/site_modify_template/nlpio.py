@@ -8,7 +8,8 @@ from pyspark.sql import SparkSession, DataFrame
 import pyspark.sql.functions as F
 
 from clinicallanguageresource.dictprep.site_modify.column_names import *
-from clinicallanguageresource.dictprep.util.nlpannotations import flatten_overlaps, flatten_overlaps_schema
+from clinicallanguageresource.dictprep.util.nlpannotations import flatten_overlaps_longest, flatten_overlaps_schema, \
+    flatten_overlaps_atomic
 
 
 def normalize_lexeme_concept(lexeme: str, concept_code: str) -> str:
@@ -64,7 +65,45 @@ def remove_all_subsumed(df: DataFrame) -> DataFrame:
         .agg(F.collect_list(F.struct(df[lexical_variant_col_name], df[offset_col_name], df[concept_id_col_name]))
              .alias(lexeme_index_column_name))
     # Remove all subsumed annotations
-    remove_subsumed_udf = F.udf(lambda self, offsets: flatten_overlaps(offsets),
+    remove_subsumed_udf = F.udf(lambda self, offsets: flatten_overlaps_longest(offsets),
+                                flatten_overlaps_schema(concept_code_col_name,
+                                                        lexeme_col_name,
+                                                        begin_col_name,
+                                                        end_col_name))
+    df = df.select(df[note_id_col_name], df[containing_sentence_col_name],
+                   F.explode(remove_subsumed_udf(df[containing_sentence_col_name],
+                                                 df[lexeme_index_column_name])).alias(lexeme_extract_struct_name))
+    # Keep only note_id, concept_code, sentence, lexeme, and deduplicate
+    df = df.select(df[note_id_col_name],
+                   F.col(lexeme_extract_struct_name + "." + concept_code_col_name).alias(concept_code_col_name),
+                   df[containing_sentence_col_name],
+                   F.col(lexeme_extract_struct_name + "." + lexeme_col_name).alias(lexeme_col_name)).distinct()
+    return df
+
+
+def remove_all_atomic(df: DataFrame) -> DataFrame:
+    """
+    For overlapping spans, keeps only the shortest for each semantic type. Can be changed to noop if NLP engine
+    handles this already
+
+    :param df: The NLP Artifact table
+    :return: The filtered dataframe with all subsumed removed with columns concept_code, sentence, lexeme
+    """
+    df = df.groupBy(
+        df[note_id_col_name],
+        df[containing_sentence_col_name]
+    ).agg(
+        F.collect_list(
+            F.struct(
+                df[lexical_variant_col_name],
+                df[offset_col_name],
+                df[concept_id_col_name],
+                df[semtype_col_name]
+            )
+        ).alias(lexeme_index_column_name)
+    )
+    # Remove all subsumed annotations
+    remove_subsumed_udf = F.udf(lambda self, offsets: flatten_overlaps_atomic(offsets),
                                 flatten_overlaps_schema(concept_code_col_name,
                                                         lexeme_col_name,
                                                         begin_col_name,

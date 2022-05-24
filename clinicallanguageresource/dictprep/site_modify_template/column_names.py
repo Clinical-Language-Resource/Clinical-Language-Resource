@@ -8,6 +8,7 @@ containing_sentence_col_name = "snippet"
 lexical_variant_col_name = "lexical_variant"
 concept_id_col_name = "note_nlp_concept_id"
 offset_col_name = "offset"
+semtype_col_name = "note_nlp_concept_id"  # Has to be joined with the concept table to get semtype, not usable as-is
 
 # Column names used internally. Only need to change this if name conflicts with an existing column in your import
 lexeme_count_avg = "lexeme_avg"
